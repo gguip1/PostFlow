@@ -119,3 +119,29 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         entry = find_entry(self.tmp_root, "local-post")
         self.assertEqual(entry.last_synced_hash, "remote-baseline")
+
+    def test_create_writes_post_under_local_vcli_posts(self) -> None:
+        self.runner.invoke(app, ["init"])
+
+        result = self.runner.invoke(
+            app,
+            [
+                "create",
+                "agent-post",
+                "--title",
+                "Agent Post",
+                "--tags",
+                "velog,cli",
+                "--visibility",
+                "private",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        post_dir = self.tmp_root / ".vcli" / "posts" / "agent-post"
+        self.assertTrue((post_dir / "content.md").exists())
+        meta = read_yaml(post_dir / "meta.yaml")
+        self.assertEqual(meta["title"], "Agent Post")
+        self.assertEqual(meta["slug"], "agent-post")
+        self.assertEqual(meta["tags"], ["velog", "cli"])
+        self.assertEqual(meta["visibility"], "private")
