@@ -28,10 +28,6 @@ def find_entry(root: Path, slug: str) -> RegistryEntry | None:
     for entry in registry.posts:
         if entry.slug == slug:
             return entry
-        if entry.id == slug:
-            return entry
-        if entry.id and entry.id.startswith(slug):
-            return entry
     return None
 
 
@@ -96,7 +92,6 @@ def sync_entry_with_meta(
         "title": meta.title,
         "visibility": meta.visibility,
         "series": meta.series,
-        "last_synced_hash": hash_post(get_post_dir(root, meta.slug)),
     }
     if hasattr(meta, "status"):
         updates["status"] = meta.status

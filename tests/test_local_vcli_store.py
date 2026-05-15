@@ -64,3 +64,46 @@ class LocalVcliStoreTests(unittest.TestCase):
         (post_dir / "content.md").write_text("# Changed\n", encoding="utf-8")
 
         self.assertEqual(calculate_status(self.tmp_root, entry), "modified")
+
+    def test_find_entry_matches_slug_only(self) -> None:
+        from vcli.core.registry import find_entry
+
+        self.runner.invoke(app, ["init"])
+        registry_path = self.tmp_root / ".vcli" / "registry.yaml"
+        registry_path.write_text(
+            "version: 1\n"
+            "posts:\n"
+            "  - slug: canonical-slug\n"
+            "    id: legacy-id\n"
+            "    velog_id: velog-1\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(find_entry(self.tmp_root, "canonical-slug").slug, "canonical-slug")
+        self.assertIsNone(find_entry(self.tmp_root, "legacy-id"))
+        self.assertIsNone(find_entry(self.tmp_root, "legacy"))
+
+    def test_sync_entry_with_meta_does_not_refresh_last_synced_hash(self) -> None:
+        from vcli.core.registry import RegistryEntry, find_entry, sync_entry_with_meta, upsert_entry
+        from vcli.models import Meta
+
+        self.runner.invoke(app, ["init"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "local-post"
+        post_dir.mkdir(parents=True)
+        (post_dir / "meta.yaml").write_text("title: Local Post\nslug: local-post\n", encoding="utf-8")
+        (post_dir / "content.md").write_text("# Changed Locally\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="local-post",
+                velog_id="velog-1",
+                url="https://velog.io/@me/local-post",
+                last_synced_hash="remote-baseline",
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        sync_entry_with_meta(self.tmp_root, Meta(title="Renamed", slug="local-post"))
+
+        entry = find_entry(self.tmp_root, "local-post")
+        self.assertEqual(entry.last_synced_hash, "remote-baseline")
