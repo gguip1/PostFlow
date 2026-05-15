@@ -65,6 +65,18 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         self.assertEqual(calculate_status(self.tmp_root, entry), "modified")
 
+    def test_hash_post_raises_when_required_file_is_missing(self) -> None:
+        from vcli.core.hashing import hash_post
+
+        self.runner.invoke(app, ["init"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "broken-post"
+        post_dir.mkdir(parents=True)
+        (post_dir / "meta.yaml").write_text("title: Broken Post\nslug: broken-post\n", encoding="utf-8")
+
+        missing_path = post_dir / "content.md"
+        with self.assertRaisesRegex(FileNotFoundError, str(missing_path).replace("\\", "\\\\")):
+            hash_post(post_dir)
+
     def test_find_entry_matches_slug_only(self) -> None:
         from vcli.core.registry import find_entry
 
