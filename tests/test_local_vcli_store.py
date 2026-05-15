@@ -32,3 +32,35 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
         self.assertEqual(registry, {"version": 1, "posts": []})
+
+    def test_calculate_status_is_draft_without_velog_id(self) -> None:
+        from vcli.core.registry import RegistryEntry, calculate_status
+
+        self.runner.invoke(app, ["init"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "local-draft"
+        post_dir.mkdir(parents=True)
+        (post_dir / "meta.yaml").write_text("title: Local Draft\nslug: local-draft\n", encoding="utf-8")
+        (post_dir / "content.md").write_text("# Local Draft\n", encoding="utf-8")
+
+        self.assertEqual(calculate_status(self.tmp_root, RegistryEntry(slug="local-draft")), "draft")
+
+    def test_calculate_status_is_modified_when_hash_differs(self) -> None:
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, calculate_status
+
+        self.runner.invoke(app, ["init"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "local-post"
+        post_dir.mkdir(parents=True)
+        (post_dir / "meta.yaml").write_text("title: Local Post\nslug: local-post\n", encoding="utf-8")
+        (post_dir / "content.md").write_text("# Local Post\n", encoding="utf-8")
+
+        entry = RegistryEntry(
+            slug="local-post",
+            velog_id="velog-1",
+            url="https://velog.io/@me/local-post",
+            last_synced_hash=hash_post(post_dir),
+            last_synced_at="2026-05-16T12:00:00Z",
+        )
+        (post_dir / "content.md").write_text("# Changed\n", encoding="utf-8")
+
+        self.assertEqual(calculate_status(self.tmp_root, entry), "modified")
