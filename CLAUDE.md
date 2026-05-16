@@ -1,49 +1,60 @@
 # unofficial-velog-cli
 
-Markdown으로 Velog 글을 관리하고 발행하는 CLI 도구.
+AI-first CLI for managing Velog posts through a local `.vcli` store.
 
-## 명령어
+## Purpose
 
-| 명령어 | 설명 |
+- Remove copy/paste work when AI agents write Velog posts.
+- Keep `vcli` focused as a Velog pull/push adapter, not a blog CMS.
+- Let users manage planning notes, series folders, and external drafts outside `vcli`.
+- Treat `.vcli/posts/<slug>` as the only local publish target.
+
+## Local Store
+
+- Run `vcli init` in the folder that should own the local Velog store.
+- Actual post files live in `.vcli/posts/<slug>/content.md` and `.vcli/posts/<slug>/meta.yaml`.
+- `.vcli/registry.yaml` stores Velog linkage and sync evidence only.
+- Velog auth remains global at `~/.vcli/velog-auth.json`.
+- Do not use `~/.vcli/blog` as a hidden default content root.
+
+## Supported Commands
+
+| Command | Meaning |
 |--------|------|
-| `vcli init` | 프로젝트 초기화. Velog username 입력 → `config/vcli.yaml` 생성 |
-| `vcli login` | Velog 로그인. 브라우저에서 쿠키 토큰을 복사해 입력 |
-| `vcli logout` | 저장된 인증 세션 삭제 (`~/.vcli/`) |
-| `vcli sync` | Velog 글을 로컬로 동기화. 이미지 다운로드 포함 |
-| `vcli create` | 새 글 생성. `posts/<slug>/content.md` + `meta.yaml` |
-| `vcli list` | 글 목록 출력. `--status draft` 등 필터 가능 |
-| `vcli check` | 메타데이터/구조 검증. `vcli check <slug>`로 단일 글 검증 가능 |
-| `vcli publish` | Velog에 발행. 인자 없으면 변경된 글 다중 선택, `--slug`로 특정 글 지정 |
-| `vcli doctor` | 환경 점검 (Python, 설정, 인증 상태 등) |
+| `vcli init` | Create a local `.vcli` store |
+| `vcli login` | Store Velog auth |
+| `vcli pull` | Pull Velog posts into `.vcli/posts` |
+| `vcli create <slug>` | Create a local draft under `.vcli/posts` |
+| `vcli list` | Show local posts with calculated state |
+| `vcli status` | Show `draft`, `modified`, and `synced` states |
+| `vcli check [slug]` | Validate post files and registry state |
+| `vcli doctor` | Inspect local `.vcli` and auth state |
+| `vcli push` | Select draft/modified posts and push them to Velog |
+| `vcli push <slug>` | Push one post to Velog |
 
-## 프로젝트 구조
+## State Model
 
-```
-unofficial-velog-cli/
-├── config/vcli.yaml       # 사용자 설정 (init으로 생성, gitignore됨)
-├── posts/
-│   ├── registry.yaml          # 글 상태 인덱스
-│   └── <slug>/
-│       ├── content.md         # 글 본문
-│       ├── meta.yaml          # 메타데이터
-│       └── images/            # 이미지 + mapping.json
-├── src/vcli/
-│   ├── commands/              # CLI 명령어
-│   ├── core/                  # 비즈니스 로직
-│   ├── adapters/velog/        # Velog GraphQL API 클라이언트
-│   └── models/                # Pydantic 데이터 모델
-└── templates/                 # 글 생성 시 사용하는 템플릿
-```
+State is calculated, not stored.
 
-## 글 작성 흐름
+- `draft`: no `velog_id`.
+- `modified`: has `velog_id`, but current file hash differs from `last_synced_hash`.
+- `synced`: has `velog_id`, and current file hash equals `last_synced_hash`.
 
-1. `vcli create` → 제목/슬러그 입력 → `posts/<slug>/` 생성
-2. `posts/<slug>/content.md` 편집
-3. `vcli publish` → 변경된 글 선택 → Velog에 발행
+`ready` and `published` are not lifecycle states in the new model.
 
-## 주의사항
+## Agent Rules
 
-- Velog 비공식 GraphQL API(v3.velog.io/graphql) 사용
-- 인증 토큰은 `~/.vcli/velog-auth.json`에 저장됨 (프로젝트 외부)
-- `config/vcli.yaml`은 `.gitignore`에 포함됨
-- 발행 시 로컬 이미지는 자동으로 Velog에 업로드됨
+- Use `vcli create` before writing a new Velog draft.
+- Use `vcli pull` when the Velog remote should become the local source.
+- Check `vcli status` before and after meaningful edits.
+- Never run `vcli push` without explicit user approval.
+- Do not use bulk push. `vcli push --all` is intentionally unsupported.
+- `pull` must not overwrite locally `modified` posts.
+
+## Deprecated
+
+- `vcli ready`
+- `vcli publish`
+- `vcli sync`
+- `vcli root set/show`
+- `vcli workspace set/show/clear`
