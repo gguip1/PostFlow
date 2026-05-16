@@ -160,3 +160,48 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(meta["title"], "Minimal Post")
         self.assertEqual(meta["tags"], [])
         self.assertEqual(meta["description"], "")
+
+    def test_status_command_shows_calculated_states(self) -> None:
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "draft-post", "--title", "Draft Post"])
+        self.runner.invoke(app, ["create", "synced-post", "--title", "Synced Post"])
+        self.runner.invoke(app, ["create", "modified-post", "--title", "Modified Post"])
+
+        synced_dir = self.tmp_root / ".vcli" / "posts" / "synced-post"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="synced-post",
+                velog_id="velog-synced",
+                url="https://velog.io/@me/synced-post",
+                last_synced_hash=hash_post(synced_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        modified_dir = self.tmp_root / ".vcli" / "posts" / "modified-post"
+        modified_hash = hash_post(modified_dir)
+        (modified_dir / "content.md").write_text("# Changed\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="modified-post",
+                velog_id="velog-modified",
+                url="https://velog.io/@me/modified-post",
+                last_synced_hash=modified_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        result = self.runner.invoke(app, ["status"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertIn("draft", result.stdout)
+        self.assertIn("draft-post", result.stdout)
+        self.assertIn("synced", result.stdout)
+        self.assertIn("synced-post", result.stdout)
+        self.assertIn("modified", result.stdout)
+        self.assertIn("modified-post", result.stdout)
