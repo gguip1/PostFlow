@@ -1,32 +1,29 @@
 from pathlib import Path
 
-CONFIG_DIR = "config"
-CONFIG_FILENAME = "vcli.yaml"
-REGISTRY_FILENAME = "registry.yaml"
+from vcli.core.workspace import find_workspace_root, posts_dir, registry_path, uploads_path
 
 
 def find_project_root(start: Path | None = None) -> Path:
-    """config/vcli.yaml 또는 posts/registry.yaml이 있는 디렉토리를 찾는다."""
-    current = start or Path.cwd()
-
-    for parent in [current, *current.parents]:
-        if (parent / CONFIG_DIR / CONFIG_FILENAME).exists() or (parent / "posts" / REGISTRY_FILENAME).exists():
-            return parent
-
-    return current
+    return find_workspace_root(start)
 
 
 def get_posts_dir(root: Path, posts_dir_name: str = "posts") -> Path:
-    return root / posts_dir_name
+    return posts_dir(root)
 
 
 def get_post_dir(root: Path, slug: str, posts_dir_name: str = "posts") -> Path:
-    return root / posts_dir_name / slug
+    return posts_dir(root) / slug
 
 
 def get_registry_path(root: Path, posts_dir_name: str = "posts") -> Path:
-    return root / posts_dir_name / REGISTRY_FILENAME
+    return registry_path(root)
+
+
+def get_uploads_path(root: Path) -> Path:
+    return uploads_path(root)
 
 
 def get_config_path(root: Path) -> Path:
-    return root / CONFIG_DIR / CONFIG_FILENAME
+    from vcli.core.workspace import config_path
+
+    return config_path(root)

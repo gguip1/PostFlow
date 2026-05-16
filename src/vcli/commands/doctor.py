@@ -1,19 +1,29 @@
 import shutil
 import sys
-
-import typer
+from pathlib import Path
 
 from vcli.core.config import config_exists, load_config
 from vcli.utils import logger
-from vcli.utils.paths import find_project_root, get_posts_dir, get_registry_path
+from vcli.utils.paths import (
+    find_project_root,
+    get_config_path,
+    get_posts_dir,
+    get_registry_path,
+)
 
 
 def doctor() -> None:
-    """환경과 설정 상태를 점검합니다."""
-    root = find_project_root()
+    """로컬 환경과 .vcli 저장소 상태를 점검합니다."""
     all_ok = True
 
-    # Python 버전
+    try:
+        root = find_project_root()
+        logger.info(f"작업 폴더: {root}")
+    except FileNotFoundError as error:
+        root = Path.cwd()
+        logger.error(str(error))
+        all_ok = False
+
     ver = sys.version_info
     if ver >= (3, 12):
         logger.success(f"Python {ver.major}.{ver.minor}.{ver.micro}")
@@ -21,56 +31,52 @@ def doctor() -> None:
         logger.error(f"Python {ver.major}.{ver.minor}.{ver.micro} (3.12 이상 필요)")
         all_ok = False
 
-    # config/vcli.yaml
     if config_exists(root):
         config = load_config(root)
+        logger.success(str(get_config_path(root)))
         if config.velog.username:
-            logger.success(f"설정 파일: config/vcli.yaml (velog: {config.velog.username})")
+            logger.info(f"Velog 사용자명: {config.velog.username}")
         else:
-            logger.warn("설정 파일: config/vcli.yaml (velog username이 비어있음)")
-            all_ok = False
+            logger.info("로컬 설정에 Velog 사용자명이 없습니다.")
     else:
-        logger.error("설정 파일 없음 - 'vcli init'을 실행하세요")
+        logger.error(f"{get_config_path(root)} 파일이 없습니다.")
         all_ok = False
 
-    # posts/registry.yaml
     registry_path = get_registry_path(root)
     if registry_path.exists():
-        logger.success("레지스트리: posts/registry.yaml")
+        logger.success(str(registry_path))
     else:
-        logger.error("레지스트리 없음 - 'vcli init'을 실행하세요")
+        logger.error(f"{registry_path} 파일이 없습니다.")
         all_ok = False
 
-    # posts 디렉토리
     posts_dir = get_posts_dir(root)
     if posts_dir.exists():
         post_count = sum(
-            1 for d in posts_dir.iterdir()
-            if d.is_dir() and (d / "meta.yaml").exists()
+            1
+            for entry in posts_dir.iterdir()
+            if entry.is_dir() and (entry / "meta.yaml").exists()
         )
-        logger.success(f"글 디렉토리: posts/ ({post_count}개 글)")
+        logger.success(f"글 폴더: {posts_dir} ({post_count}개)")
     else:
-        logger.error("글 디렉토리 없음 - 'vcli init'을 실행하세요")
+        logger.error(f"{posts_dir} 폴더가 없습니다.")
         all_ok = False
 
-    # Velog 인증 상태
-    from vcli.adapters.velog.auth import check_auth, auth_exists
+    from vcli.adapters.velog.auth import auth_exists, check_auth
+
     if auth_exists():
         if check_auth():
-            logger.success("Velog 인증: 유효")
+            logger.success("Velog 인증: 유효함")
         else:
-            logger.warn("Velog 인증: 토큰 만료 - 'vcli login'을 실행하세요")
+            logger.warn("Velog 인증: 저장되어 있지만 만료됨")
     else:
-        logger.info("Velog 인증: 미로그인 - 'vcli login'을 실행하세요")
+        logger.info("Velog 인증: 로그인되지 않음")
 
-    # gh CLI
     if shutil.which("gh"):
         logger.success("GitHub CLI: 설치됨")
     else:
-        logger.info("GitHub CLI: 미설치 (선택사항)")
+        logger.info("GitHub CLI: 설치되지 않음")
 
-    # 결과
     if all_ok:
-        logger.success("모든 점검 통과!")
+        logger.success("doctor 점검을 통과했습니다.")
     else:
-        logger.warn("일부 항목에 문제가 있습니다. 위 내용을 확인하세요.")
+        logger.warn("doctor 점검에서 문제가 발견되었습니다.")

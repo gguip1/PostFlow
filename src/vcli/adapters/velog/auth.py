@@ -2,25 +2,32 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-VCLI_DIR = Path.home() / ".vcli"
-AUTH_FILE = VCLI_DIR / "velog-auth.json"
+from vcli.core.workspace import workspace_dir
 
 
-def get_auth_path() -> Path:
-    return AUTH_FILE
+AUTH_FILENAME = "velog-auth.json"
 
 
-def auth_exists() -> bool:
-    return AUTH_FILE.exists()
+def get_auth_path(root: Path | None = None) -> Path:
+    if root is None:
+        from vcli.core.workspace import find_workspace_root
+
+        root = find_workspace_root()
+    return workspace_dir(root) / AUTH_FILENAME
 
 
-def check_auth() -> bool:
+def auth_exists(root: Path | None = None) -> bool:
+    return get_auth_path(root).exists()
+
+
+def check_auth(root: Path | None = None) -> bool:
     """저장된 토큰이 유효한지 Velog GraphQL API로 확인한다."""
-    if not AUTH_FILE.exists():
+    auth_path = get_auth_path(root)
+    if not auth_path.exists():
         return False
 
     try:
-        with open(AUTH_FILE, encoding="utf-8") as f:
+        with open(auth_path, encoding="utf-8") as f:
             storage = json.load(f)
 
         cookies = {c["name"]: c["value"] for c in storage.get("cookies", [])}
@@ -45,9 +52,10 @@ def check_auth() -> bool:
         return False
 
 
-def login_with_token(access_token: str, refresh_token: str) -> None:
+def login_with_token(access_token: str, refresh_token: str, root: Path | None = None) -> None:
     """사용자가 직접 복사한 토큰으로 세션을 저장한다."""
-    VCLI_DIR.mkdir(parents=True, exist_ok=True)
+    auth_path = get_auth_path(root)
+    auth_path.parent.mkdir(parents=True, exist_ok=True)
 
     storage = {
         "cookies": [
@@ -73,5 +81,5 @@ def login_with_token(access_token: str, refresh_token: str) -> None:
         "origins": [],
     }
 
-    with open(AUTH_FILE, "w", encoding="utf-8") as f:
+    with open(auth_path, "w", encoding="utf-8") as f:
         json.dump(storage, f)

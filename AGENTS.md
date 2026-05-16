@@ -1,49 +1,69 @@
 # unofficial-velog-cli
 
-Markdown으로 Velog 글을 관리하고 발행하는 CLI 도구.
+Agent-first CLI for publishing Velog posts.
 
-## 명령어
+## Purpose
 
-| 명령어 | 설명 |
-|--------|------|
-| `vcli init` | 프로젝트 초기화. Velog username 입력 → `config/vcli.yaml` 생성 |
-| `vcli login` | Velog 로그인. 브라우저에서 쿠키 토큰을 복사해 입력 |
-| `vcli logout` | 저장된 인증 세션 삭제 (`~/.vcli/`) |
-| `vcli sync` | Velog 글을 로컬로 동기화. 이미지 다운로드 포함 |
-| `vcli create` | 새 글 생성. `posts/<slug>/content.md` + `meta.yaml` |
-| `vcli list` | 글 목록 출력. `--status draft` 등 필터 가능 |
-| `vcli check` | 메타데이터/구조 검증. `vcli check <slug>`로 단일 글 검증 가능 |
-| `vcli publish` | Velog에 발행. 인자 없으면 변경된 글 다중 선택, `--slug`로 특정 글 지정 |
-| `vcli doctor` | 환경 점검 (Python, 설정, 인증 상태 등) |
+- Let agents pull, edit, validate, upload images for, and push Velog posts safely.
+- Keep `vcli` as a Velog adapter, not a blog CMS.
+- Planning notes, series docs, and external drafts are user-owned outside `vcli`.
+- The publish source is the current workspace's local `.vcli` store.
 
-## 프로젝트 구조
+## Local Store
 
-```
-unofficial-velog-cli/
-├── config/vcli.yaml       # 사용자 설정 (init으로 생성, gitignore됨)
-├── posts/
-│   ├── registry.yaml          # 글 상태 인덱스
-│   └── <slug>/
-│       ├── content.md         # 글 본문
-│       ├── meta.yaml          # 메타데이터
-│       └── images/            # 이미지 + mapping.json
-├── src/vcli/
-│   ├── commands/              # CLI 명령어
-│   ├── core/                  # 비즈니스 로직
-│   ├── adapters/velog/        # Velog GraphQL API 클라이언트
-│   └── models/                # Pydantic 데이터 모델
-└── templates/                 # 글 생성 시 사용하는 템플릿
-```
+- Run `vcli init` in the folder that owns the Velog workspace.
+- Pushable posts live at `.vcli/posts/<slug>/content.md` and `.vcli/posts/<slug>/meta.yaml`.
+- `.vcli/registry.yaml` stores only Velog linkage and sync evidence.
+- `.vcli/uploads.yaml` stores image upload records.
+- Velog auth is local: `.vcli/velog-auth.json`.
+- Do not use global `~/.vcli/blog` as a hidden content root.
 
-## 글 작성 흐름
+## Commands
 
-1. `vcli create` → 제목/슬러그 입력 → `posts/<slug>/` 생성
-2. `posts/<slug>/content.md` 편집
-3. `vcli publish` → 변경된 글 선택 → Velog에 발행
+- `vcli init`: create local `.vcli` store.
+- `vcli login`: store Velog auth in the current `.vcli`.
+- `vcli pull`: pull all Velog posts into `.vcli/posts`.
+- `vcli create <slug>`: create a local draft.
+- `vcli list`: list posts with calculated status.
+- `vcli status`: show `draft`, `modified`, `synced`.
+- `vcli check [slug]`: validate files and registry state.
+- `vcli doctor`: inspect local store and auth.
+- `vcli image upload <path>`: upload one image and print the Velog CDN URL.
+- `vcli push`: interactively select draft/modified posts to push.
+- `vcli push <slug>`: push one post.
 
-## 주의사항
+## State Model
 
-- Velog 비공식 GraphQL API(v3.velog.io/graphql) 사용
-- 인증 토큰은 `~/.vcli/velog-auth.json`에 저장됨 (프로젝트 외부)
-- `config/vcli.yaml`은 `.gitignore`에 포함됨
-- 발행 시 로컬 이미지는 자동으로 Velog에 업로드됨
+State is calculated, not stored.
+
+- `draft`: no `velog_id`.
+- `modified`: has `velog_id`, but current file hash differs from `last_synced_hash`.
+- `synced`: has `velog_id`, and current file hash equals `last_synced_hash`.
+
+`ready` is not used.
+
+## Agent Workflow
+
+1. Use `vcli pull` when remote Velog should be mirrored locally.
+2. Use `vcli create <slug>` before writing a new post.
+3. Edit only `.vcli/posts/<slug>/content.md` and `meta.yaml` for publishable content.
+4. Run `vcli status` before and after meaningful edits.
+5. Run `vcli check [slug]` before pushing.
+6. Never run `vcli push` without explicit user approval.
+7. Do not use or implement `vcli push --all`.
+
+## Image Workflow
+
+- `vcli image upload <path>` uploads one local image and prints only the URL.
+- Use `vcli image upload <path> --json` when an agent must parse the result.
+- `vcli image upload` never edits `content.md`.
+- Insert the returned URL into `content.md` yourself.
+- `push` blocks unresolved local image refs such as `./images/foo.png`.
+- `pull` may download remote images into `.vcli/posts/<slug>/images/`.
+- Pull image mappings live in `.vcli/posts/<slug>/images/mapping.json` and include hashes when possible.
+- `push` restores only mapped local image refs whose hash still matches.
+
+## Skills Policy
+
+- Do not distribute repo-local `.agents/skills`.
+- Agents should rely on this `AGENTS.md` and the `vcli` commands only.

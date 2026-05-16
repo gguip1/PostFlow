@@ -10,6 +10,6 @@ def to_post_data(meta: Meta, content: str) -> PostData:
         tags=meta.tags,
         description=meta.description,
         slug=meta.slug,
-        visibility=meta.visibility.value,
+        visibility=meta.visibility,
         series=meta.series,
     )

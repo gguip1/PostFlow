@@ -8,17 +8,12 @@ from vcli.utils.paths import get_config_path
 def load_config(root: Path) -> Config:
     path = get_config_path(root)
     if not path.exists():
-        raise FileNotFoundError(
-            f"설정 파일을 찾을 수 없습니다: {path}\n"
-            "'vcli init'을 먼저 실행하세요."
-        )
-    data = read_yaml(path)
-    return Config(**data)
+        raise FileNotFoundError("vcli 설정 파일을 찾을 수 없습니다. 먼저 `vcli init`을 실행하세요.")
+    return Config(**read_yaml(path))
 
 
 def save_config(root: Path, config: Config) -> None:
-    path = get_config_path(root)
-    write_yaml(path, config.model_dump())
+    write_yaml(get_config_path(root), config.model_dump(mode="json"))
 
 
 def config_exists(root: Path) -> bool:

@@ -1,15 +1,18 @@
 import json
+import mimetypes
 import urllib.error
 from pathlib import Path
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
-from vcli.adapters.velog.auth import AUTH_FILE
+from vcli.adapters.velog.auth import get_auth_path
 
 VELOG_GRAPHQL = "https://v3.velog.io/graphql"
+VELOG_IMAGE_UPLOAD = "https://v3.velog.io/api/files/v3/upload"
 
 
 def _get_access_token() -> str:
-    with open(AUTH_FILE, encoding="utf-8") as f:
+    with open(get_auth_path(), encoding="utf-8") as f:
         storage = json.load(f)
     cookies = {c["name"]: c["value"] for c in storage.get("cookies", [])}
     return cookies.get("access_token", "")
@@ -45,6 +48,81 @@ def _graphql(query: str, variables: dict | None = None) -> dict:
                 "인증이 만료되었습니다. 'vcli login'으로 다시 로그인하세요."
             )
         raise ConnectionError(f"Velog API 오류 (HTTP {e.code}): {e.reason}")
+
+
+def _multipart_form_data(
+    fields: dict[str, str],
+    file_field: str,
+    file_path: Path,
+) -> tuple[bytes, str]:
+    boundary = f"----vcli-{uuid4().hex}"
+    filename = file_path.name
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    parts: list[bytes] = []
+
+    for name, value in fields.items():
+        parts.extend(
+            [
+                f"--{boundary}\r\n".encode(),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
+                str(value).encode(),
+                b"\r\n",
+            ]
+        )
+
+    parts.extend(
+        [
+            f"--{boundary}\r\n".encode(),
+            (
+                f'Content-Disposition: form-data; name="{file_field}"; '
+                f'filename="{filename}"\r\n'
+            ).encode(),
+            f"Content-Type: {content_type}\r\n\r\n".encode(),
+            file_path.read_bytes(),
+            b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        ]
+    )
+    return b"".join(parts), boundary
+
+
+def upload_image_file(
+    path: Path,
+    image_type: str = "post",
+    ref_id: str | None = None,
+) -> str:
+    access_token = _get_access_token()
+    fields = {"type": image_type}
+    if ref_id:
+        fields["ref_id"] = ref_id
+
+    body, boundary = _multipart_form_data(fields, "image", path)
+    req = Request(
+        VELOG_IMAGE_UPLOAD,
+        data=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+            "Cookie": f"access_token={access_token}",
+        },
+    )
+
+    try:
+        with urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise PermissionError(
+                "인증이 만료되었습니다. 'vcli login'으로 다시 로그인하세요."
+            )
+        raise ConnectionError(f"Velog 이미지 업로드 실패 (HTTP {e.code}): {e.reason}")
+    except urllib.error.URLError as e:
+        raise ConnectionError(f"Velog 이미지 업로드 실패: {e}")
+
+    url = payload.get("path")
+    if not url:
+        raise RuntimeError("Velog 이미지 업로드 응답에 URL이 없습니다.")
+    return url
 
 
 def get_current_user() -> dict | None:

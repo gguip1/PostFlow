@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 
 import typer
 
@@ -9,48 +8,59 @@ from vcli.utils.paths import find_project_root
 
 
 def _slugify(text: str) -> str:
-    """제목을 슬러그로 변환한다."""
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_]+", "-", text)
     text = re.sub(r"-+", "-", text)
-    text = text.strip("-")
-    return text
+    return text.strip("-")
 
 
 def create(
+    post_slug: str = typer.Argument(None, help="글 slug"),
     title: str = typer.Option(None, "--title", "-t", help="글 제목"),
-    slug: str = typer.Option(None, "--slug", "-s", help="URL 슬러그"),
-    visibility: str = typer.Option("public", "--visibility", "-v", help="공개 여부 (public/private)"),
-    series: str = typer.Option(None, "--series", help="Velog 시리즈명"),
+    slug: str = typer.Option(None, "--slug", "-s", help="글 slug"),
+    tags: str = typer.Option(None, "--tags", help="쉼표로 구분한 태그"),
+    description: str = typer.Option("", "--description", "-d", help="글 설명"),
+    visibility: str = typer.Option(
+        "public", "--visibility", "-v", help="공개 범위: public 또는 private"
+    ),
+    series: str = typer.Option(None, "--series", help="Velog 시리즈 이름"),
 ) -> None:
-    """새 글을 생성합니다."""
+    """새 로컬 draft 글을 만듭니다."""
     root = find_project_root()
+    interactive = title is None and slug is None and post_slug is None
 
-    # 대화형 입력
+    if visibility not in {"public", "private"}:
+        logger.error("visibility는 public 또는 private이어야 합니다.")
+        raise typer.Exit(1)
+
     if title is None:
         title = typer.prompt("글 제목")
 
+    slug = slug or post_slug
     if slug is None:
-        suggested = _slugify(title)
-        slug = typer.prompt("슬러그 (URL용)", default=suggested)
+        slug = typer.prompt("글 slug", default=_slugify(title))
+
+    parsed_tags: list[str] = []
+    if tags is None and interactive:
+        tags = typer.prompt("태그(쉼표 구분)", default="")
+    if tags:
+        parsed_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
     try:
         meta = create_post(
             root=root,
             title=title,
             slug=slug,
+            tags=parsed_tags,
             visibility=visibility,
+            description=description,
             series=series,
         )
-        logger.success(f"글 생성 완료: posts/{slug}/")
-        logger.info(f"  ID: {meta.id}")
-        logger.info(f"  제목: {meta.title}")
-        logger.info(f"  상태: {meta.status.value}")
-        logger.info(f"posts/{slug}/content.md 를 편집해서 글을 작성하세요.")
-    except FileExistsError as e:
-        logger.error(str(e))
-        raise typer.Exit(1)
-    except ValueError as e:
-        logger.error(str(e))
-        raise typer.Exit(1)
+    except (FileExistsError, ValueError) as error:
+        logger.error(str(error))
+        raise typer.Exit(1) from error
+
+    post_dir = root / ".vcli" / "posts" / slug
+    logger.success(f"로컬 draft를 만들었습니다: {post_dir}")
+    logger.info(f"본문 파일: {post_dir / 'content.md'}")
