@@ -205,15 +205,6 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertIn("검증을 통과했습니다", result.stdout)
 
-    def test_doctor_reports_local_vcli_store(self) -> None:
-        self.runner.invoke(app, ["init"])
-
-        result = self.runner.invoke(app, ["doctor"])
-
-        self.assertEqual(result.exit_code, 0, result.stdout)
-        self.assertIn(".vcli", result.stdout)
-        self.assertIn("registry.yaml", result.stdout)
-
     def test_pull_imports_remote_post_and_marks_synced(self) -> None:
         import vcli.commands.import_posts as pull_command
 

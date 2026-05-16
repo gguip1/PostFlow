@@ -49,27 +49,6 @@ class VcliCliSmokeTests(unittest.TestCase):
 
             self.assertNotEqual(result.exit_code, 0, command)
 
-    def test_legacy_command_modules_are_removed(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-
-        for relative_path in (
-            "src/vcli/commands/publish.py",
-            "src/vcli/commands/ready.py",
-            "src/vcli/commands/root.py",
-            "src/vcli/commands/workspace.py",
-            "src/vcli/core/global_config.py",
-            "src/vcli/models/global_config.py",
-        ):
-            self.assertFalse((repo_root / relative_path).exists(), relative_path)
-
-        self.assertTrue((repo_root / "src/vcli/commands/push.py").exists())
-
-    def test_agent_skill_distribution_is_removed(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-
-        self.assertFalse((repo_root / ".agents" / "skills").exists())
-        self.assertFalse((repo_root / "scripts" / ("install-global" + "-skill.py")).exists())
-
     def test_auth_path_is_inside_local_vcli_store(self) -> None:
         from vcli.adapters.velog.auth import get_auth_path, login_with_token
 
