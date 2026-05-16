@@ -6,17 +6,28 @@ Velog 글을 로컬 `.vcli` 저장소로 가져오고, 수정하고, 발행할 �
 
 ## 설치
 
+Python 3.12 이상이 필요합니다.
+
+단순히 사용하려면 저장소를 clone한 뒤 editable 모드로 설치합니다.
+
 ```bash
+git clone https://github.com/gguip1/unofficial-velog-cli.git
+cd unofficial-velog-cli
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+python -m pip install -e .
 ```
 
-Windows PowerShell:
+기여하려면 먼저 GitHub에서 fork한 뒤 clone URL을 본인 fork 주소로 바꾸면 됩니다.
+
+Windows PowerShell에서는 다음처럼 설치합니다.
 
 ```powershell
-.venv\Scripts\activate
-pip install -e .
+git clone https://github.com/gguip1/unofficial-velog-cli.git
+cd unofficial-velog-cli
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
 ```
 
 ## 빠른 시작
