@@ -1,15 +1,14 @@
 import json
 import urllib.error
-from pathlib import Path
 from urllib.request import Request, urlopen
 
-from vcli.adapters.velog.auth import AUTH_FILE
+from vcli.adapters.velog.auth import get_auth_path
 
 VELOG_GRAPHQL = "https://v3.velog.io/graphql"
 
 
 def _get_access_token() -> str:
-    with open(AUTH_FILE, encoding="utf-8") as f:
+    with open(get_auth_path(), encoding="utf-8") as f:
         storage = json.load(f)
     cookies = {c["name"]: c["value"] for c in storage.get("cookies", [])}
     return cookies.get("access_token", "")

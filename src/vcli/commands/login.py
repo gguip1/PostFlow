@@ -8,7 +8,13 @@ from vcli.utils import logger
 
 def login_cmd() -> None:
     """Velog에 로그인합니다."""
-    if auth_exists():
+    try:
+        existing_auth = auth_exists()
+    except FileNotFoundError as error:
+        logger.error(str(error))
+        raise typer.Exit(1) from error
+
+    if existing_auth:
         logger.info("기존 세션이 있습니다. 유효한지 확인 중...")
         if check_auth():
             logger.success("이미 로그인되어 있습니다.")

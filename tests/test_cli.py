@@ -73,6 +73,32 @@ class VcliCliSmokeTests(unittest.TestCase):
         )
         self.assertFalse((repo_root / "scripts" / ("install-global" + "-skill.py")).exists())
 
+    def test_auth_path_is_inside_local_vcli_store(self) -> None:
+        from vcli.adapters.velog.auth import get_auth_path, login_with_token
+
+        self.runner.invoke(app, ["init"])
+
+        auth_path = self.tmp_root / ".vcli" / "velog-auth.json"
+        self.assertEqual(get_auth_path(self.tmp_root), auth_path)
+
+        login_with_token("access-token", "refresh-token", self.tmp_root)
+
+        self.assertTrue(auth_path.exists())
+        self.assertFalse((Path.home() / ".vcli" / "velog-auth.json") == auth_path)
+
+    def test_logout_removes_only_local_auth_file(self) -> None:
+        from vcli.adapters.velog.auth import login_with_token
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "kept-post", "--title", "Kept Post"])
+        login_with_token("access-token", "refresh-token", self.tmp_root)
+
+        result = self.runner.invoke(app, ["logout"], input="y\n")
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertFalse((self.tmp_root / ".vcli" / "velog-auth.json").exists())
+        self.assertTrue((self.tmp_root / ".vcli" / "posts" / "kept-post").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

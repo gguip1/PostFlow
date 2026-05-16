@@ -76,7 +76,7 @@ project/
           mapping.json
 ```
 
-Velog 인증 세션은 프로젝트별이 아니라 전역 `~/.vcli/velog-auth.json`에 저장합니다.
+Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저장합니다.
 
 ## Agent Skills
 

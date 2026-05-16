@@ -1,5 +1,6 @@
 # 사용자 설정 (포크 후 init으로 생성)
 config/vcli.yaml
+.vcli/velog-auth.json
 
 # Python
 __pycache__/

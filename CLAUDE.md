@@ -14,7 +14,7 @@ AI-first CLI for managing Velog posts through a local `.vcli` store.
 - Run `vcli init` in the folder that should own the local Velog store.
 - Actual post files live in `.vcli/posts/<slug>/content.md` and `.vcli/posts/<slug>/meta.yaml`.
 - `.vcli/registry.yaml` stores Velog linkage and sync evidence only.
-- Velog auth remains global at `~/.vcli/velog-auth.json`.
+- Velog auth is stored in the current local store at `.vcli/velog-auth.json`.
 - Do not use `~/.vcli/blog` as a hidden default content root.
 
 ## Supported Commands

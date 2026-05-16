@@ -15,7 +15,7 @@ Velog 글 발행용 agent-first CLI.
 - `.vcli/posts/<slug>/content.md`와 `.vcli/posts/<slug>/meta.yaml`이 실제 push 대상이다.
 - `.vcli/registry.yaml`은 Velog 글과 로컬 글의 연결 정보만 관리한다.
 - 루트의 `series/`, `drafts/`, 기타 문서 폴더는 사용자가 자유롭게 관리하며 `vcli`가 강제하지 않는다.
-- Velog 인증은 전역 `~/.vcli/velog-auth.json`에 둔다.
+- Velog 인증은 현재 저장소의 `.vcli/velog-auth.json`에 둔다.
 - 전역 `~/.vcli/blog`를 기본 글 저장소처럼 사용하지 않는다.
 
 ## 공개 명령
