@@ -6,16 +6,16 @@ from vcli.utils.paths import find_project_root
 
 
 def status() -> None:
-    """Show local vcli post sync status."""
+    """로컬 vcli 글 상태를 보여줍니다."""
     root = find_project_root()
     registry = load_registry(root)
 
     if not registry.posts:
-        console.print("No posts. Run `vcli create` or `vcli pull`.")
+        console.print("글이 없습니다. `vcli create` 또는 `vcli pull`을 실행하세요.")
         return
 
-    table = Table(title="vcli status")
-    table.add_column("Status")
+    table = Table(title="vcli 상태")
+    table.add_column("상태")
     table.add_column("Slug")
     table.add_column("URL")
 

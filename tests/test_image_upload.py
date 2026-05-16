@@ -97,7 +97,7 @@ class ImageUploadTests(unittest.TestCase):
             result = self.runner.invoke(app, ["push", "image-post"])
 
         self.assertEqual(result.exit_code, 1, result.stdout)
-        self.assertIn("Local image path is not uploaded", result.stdout)
+        self.assertIn("업로드되지 않은 로컬 이미지 경로", result.stdout)
         self.assertIn("vcli image upload", result.stdout)
 
     def test_push_allows_mapped_local_image_when_hash_matches(self) -> None:
@@ -145,7 +145,7 @@ class ImageUploadTests(unittest.TestCase):
 
         with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
              unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
-            result = self.runner.invoke(app, ["push", "image-post"])
+            result = self.runner.invoke(app, ["push", "image-post"], input="y\n")
 
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertEqual(

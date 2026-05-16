@@ -33,16 +33,16 @@ def validate_post(root: Path, slug: str) -> CheckResult:
     post_dir = get_post_dir(root, slug)
 
     if not post_dir.exists():
-        result.add_error(f"[{slug}] post directory is missing")
+        result.add_error(f"[{slug}] 글 폴더가 없습니다.")
         return result
 
     content_path = post_dir / "content.md"
     if not content_path.exists():
-        result.add_error(f"[{slug}] content.md is missing")
+        result.add_error(f"[{slug}] content.md 파일이 없습니다.")
 
     meta_path = post_dir / "meta.yaml"
     if not meta_path.exists():
-        result.add_error(f"[{slug}] meta.yaml is missing")
+        result.add_error(f"[{slug}] meta.yaml 파일이 없습니다.")
         return result
 
     try:
@@ -50,15 +50,15 @@ def validate_post(root: Path, slug: str) -> CheckResult:
     except ValidationError as error:
         for item in error.errors():
             field = ".".join(str(loc) for loc in item["loc"])
-            result.add_error(f"[{slug}] meta.yaml invalid: {field}: {item['msg']}")
+            result.add_error(f"[{slug}] meta.yaml 값이 올바르지 않습니다: {field}: {item['msg']}")
         return result
 
     if meta.slug != slug:
         result.add_error(
-            f"[{slug}] meta.yaml slug does not match directory name: {meta.slug}"
+            f"[{slug}] meta.yaml slug가 폴더 이름과 다릅니다: {meta.slug}"
         )
     if not meta.title:
-        result.add_error(f"[{slug}] meta.yaml title is empty")
+        result.add_error(f"[{slug}] meta.yaml title이 비어 있습니다.")
 
     return result
 
@@ -72,17 +72,17 @@ def validate_registry(root: Path) -> CheckResult:
 
     for entry in registry.posts:
         if entry.slug in seen_slugs:
-            result.add_error(f"registry contains duplicate slug: {entry.slug}")
+            result.add_error(f"registry에 중복 slug가 있습니다: {entry.slug}")
         seen_slugs.add(entry.slug)
 
         post_dir = posts_dir / entry.slug
         if not post_dir.exists():
-            result.add_error(f"[{entry.slug}] registry entry points to a missing directory")
+            result.add_error(f"[{entry.slug}] registry가 없는 글 폴더를 가리킵니다.")
             continue
 
         meta_path = post_dir / "meta.yaml"
         if not meta_path.exists():
-            result.add_error(f"[{entry.slug}] registry entry points to a missing meta.yaml")
+            result.add_error(f"[{entry.slug}] registry가 meta.yaml이 없는 글을 가리킵니다.")
             continue
 
         try:
@@ -91,7 +91,7 @@ def validate_registry(root: Path) -> CheckResult:
             for item in error.errors():
                 field = ".".join(str(loc) for loc in item["loc"])
                 result.add_error(
-                    f"[{entry.slug}] meta.yaml invalid: {field}: {item['msg']}"
+                    f"[{entry.slug}] meta.yaml 값이 올바르지 않습니다: {field}: {item['msg']}"
                 )
             continue
 
@@ -102,7 +102,7 @@ def validate_registry(root: Path) -> CheckResult:
                 and (child / "meta.yaml").exists()
                 and child.name not in seen_slugs
             ):
-                result.add_warning(f"[{child.name}] post directory is missing from registry")
+                result.add_warning(f"[{child.name}] 글 폴더가 registry에 없습니다.")
 
     return result
 

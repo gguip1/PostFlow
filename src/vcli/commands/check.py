@@ -6,9 +6,9 @@ from vcli.utils.paths import find_project_root
 
 
 def check(
-    slug: str = typer.Argument(None, help="Validate a single post by slug"),
+    slug: str = typer.Argument(None, help="검증할 글 slug"),
 ) -> None:
-    """Validate blog post files and registry state."""
+    """글 파일과 registry 상태를 검증합니다."""
     root = find_project_root()
 
     try:
@@ -23,8 +23,8 @@ def check(
         logger.error(error)
 
     if result.ok:
-        logger.success(f"Validation passed for {slug}" if slug else "Validation passed")
+        logger.success(f"검증을 통과했습니다: {slug}" if slug else "검증을 통과했습니다.")
         return
 
-    logger.error(f"Validation failed with {len(result.errors)} error(s)")
+    logger.error(f"검증 실패: 오류 {len(result.errors)}개")
     raise typer.Exit(1)

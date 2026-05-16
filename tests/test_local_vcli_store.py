@@ -203,7 +203,7 @@ class LocalVcliStoreTests(unittest.TestCase):
         result = self.runner.invoke(app, ["check"])
 
         self.assertEqual(result.exit_code, 0, result.stdout)
-        self.assertIn("Validation passed", result.stdout)
+        self.assertIn("검증을 통과했습니다", result.stdout)
 
     def test_doctor_reports_local_vcli_store(self) -> None:
         self.runner.invoke(app, ["init"])
@@ -294,7 +294,7 @@ class LocalVcliStoreTests(unittest.TestCase):
             )
 
         self.assertIn("./images/image-1-", result)
-        self.assertEqual(messages, ["Processed images: 1/1"])
+        self.assertEqual(messages, ["이미지 처리 완료: 1/1"])
 
     def test_pull_skips_modified_local_post(self) -> None:
         import vcli.commands.import_posts as pull_command
@@ -340,7 +340,7 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Local Edit\n")
-        self.assertIn("Skipped modified local post", result.stdout)
+        self.assertIn("수정된 로컬 글은 덮어쓰지 않고 건너뜁니다", result.stdout)
 
     def test_pull_refreshes_registry_entry_with_missing_local_files(self) -> None:
         import vcli.commands.import_posts as pull_command
@@ -382,7 +382,7 @@ class LocalVcliStoreTests(unittest.TestCase):
         post_dir = self.tmp_root / ".vcli" / "posts" / "missing-local"
         self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Restored\n")
         self.assertTrue((post_dir / "meta.yaml").exists())
-        self.assertIn("Refreshing invalid local post", result.stdout)
+        self.assertIn("깨진 로컬 글을 원격 기준으로 다시 가져옵니다", result.stdout)
 
     def test_push_single_draft_creates_remote_and_marks_synced(self) -> None:
         import vcli.commands.push as push_command
@@ -405,7 +405,7 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
              unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
-            result = self.runner.invoke(app, ["push", "push-me"])
+            result = self.runner.invoke(app, ["push", "push-me"], input="y\n")
 
         self.assertEqual(result.exit_code, 0, result.stdout)
         registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
@@ -458,10 +458,13 @@ class LocalVcliStoreTests(unittest.TestCase):
 
         with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
              unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
-            result = self.runner.invoke(app, ["push", "update-me"])
+            result = self.runner.invoke(app, ["push", "update-me"], input="y\n")
 
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertEqual(calls, [("update", "velog-existing")])
+        self.assertIn("원격 Velog 글", result.stdout)
+        self.assertIn("https://velog.io/@me/update-me", result.stdout)
+        self.assertIn("덮어씁니다", result.stdout)
         status_result = self.runner.invoke(app, ["status"])
         self.assertIn("synced", status_result.stdout)
         self.assertIn("update-me", status_result.stdout)
@@ -491,7 +494,7 @@ class LocalVcliStoreTests(unittest.TestCase):
             result = self.runner.invoke(app, ["push"])
 
         self.assertEqual(result.exit_code, 0, result.stdout)
-        self.assertIn("Space", captured_prompt.get("instruction", ""))
+        self.assertIn("스페이스", captured_prompt.get("instruction", ""))
         self.assertIn("Enter", captured_prompt.get("instruction", ""))
 
     def test_push_without_slug_skips_registry_entries_with_missing_local_files(self) -> None:
@@ -532,4 +535,4 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.stdout)
         choice_values = [choice["value"] for choice in captured_prompt["choices"]]
         self.assertEqual(choice_values, ["select-me"])
-        self.assertIn("Skipped invalid local post", result.stdout)
+        self.assertIn("깨진 로컬 글을 건너뜁니다", result.stdout)

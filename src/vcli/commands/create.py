@@ -16,34 +16,34 @@ def _slugify(text: str) -> str:
 
 
 def create(
-    post_slug: str = typer.Argument(None, help="Post slug"),
-    title: str = typer.Option(None, "--title", "-t", help="Post title"),
-    slug: str = typer.Option(None, "--slug", "-s", help="Post slug"),
-    tags: str = typer.Option(None, "--tags", help="Comma-separated tags"),
-    description: str = typer.Option("", "--description", "-d", help="Post description"),
+    post_slug: str = typer.Argument(None, help="글 slug"),
+    title: str = typer.Option(None, "--title", "-t", help="글 제목"),
+    slug: str = typer.Option(None, "--slug", "-s", help="글 slug"),
+    tags: str = typer.Option(None, "--tags", help="쉼표로 구분한 태그"),
+    description: str = typer.Option("", "--description", "-d", help="글 설명"),
     visibility: str = typer.Option(
-        "public", "--visibility", "-v", help="Visibility: public or private"
+        "public", "--visibility", "-v", help="공개 범위: public 또는 private"
     ),
-    series: str = typer.Option(None, "--series", help="Velog series name"),
+    series: str = typer.Option(None, "--series", help="Velog 시리즈 이름"),
 ) -> None:
-    """Create a new draft post."""
+    """새 로컬 draft 글을 만듭니다."""
     root = find_project_root()
     interactive = title is None and slug is None and post_slug is None
 
     if visibility not in {"public", "private"}:
-        logger.error("visibility must be public or private")
+        logger.error("visibility는 public 또는 private이어야 합니다.")
         raise typer.Exit(1)
 
     if title is None:
-        title = typer.prompt("Post title")
+        title = typer.prompt("글 제목")
 
     slug = slug or post_slug
     if slug is None:
-        slug = typer.prompt("Post slug", default=_slugify(title))
+        slug = typer.prompt("글 slug", default=_slugify(title))
 
     parsed_tags: list[str] = []
     if tags is None and interactive:
-        tags = typer.prompt("Tags (comma-separated)", default="")
+        tags = typer.prompt("태그(쉼표 구분)", default="")
     if tags:
         parsed_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
@@ -62,5 +62,5 @@ def create(
         raise typer.Exit(1) from error
 
     post_dir = root / ".vcli" / "posts" / slug
-    logger.success(f"Draft created: {post_dir}")
-    logger.info(f"Edit: {post_dir / 'content.md'}")
+    logger.success(f"로컬 draft를 만들었습니다: {post_dir}")
+    logger.info(f"본문 파일: {post_dir / 'content.md'}")

@@ -91,7 +91,7 @@ def _download_images(body: str, post_dir: Path) -> str:
             body = body.replace(url, local_ref)
             processed += 1
         except Exception:
-            logger.warn(f"Failed to download image: {url}")
+            logger.warn(f"이미지를 다운로드하지 못했습니다: {url}")
 
     if mapping:
         mapping_path.write_text(
@@ -100,7 +100,7 @@ def _download_images(body: str, post_dir: Path) -> str:
         )
 
     if processed:
-        logger.info(f"Processed images: {processed}/{len(urls)}")
+        logger.info(f"이미지 처리 완료: {processed}/{len(urls)}")
 
     return body
 
@@ -109,21 +109,21 @@ def _has_modified_local_copy(root: Path, entry) -> bool:
     try:
         return calculate_status(root, entry) == "modified"
     except FileNotFoundError as error:
-        logger.warn(f"Refreshing invalid local post: {entry.slug} ({error})")
+        logger.warn(f"깨진 로컬 글을 원격 기준으로 다시 가져옵니다: {entry.slug} ({error})")
         return False
 
 
 def pull() -> None:
-    """Pull all Velog posts into .vcli/posts."""
+    """Velog 글을 .vcli/posts로 가져옵니다."""
     root = find_project_root()
 
     if not check_auth():
-        logger.error("Velog login required. Run `vcli login` first.")
+        logger.error("Velog 로그인이 필요합니다. 먼저 `vcli login`을 실행하세요.")
         raise typer.Exit(1)
 
     user = get_current_user()
     if not user:
-        logger.error("Unable to read Velog user.")
+        logger.error("Velog 사용자 정보를 읽을 수 없습니다.")
         raise typer.Exit(1)
 
     username = user["username"]
@@ -136,7 +136,7 @@ def pull() -> None:
         entry = find_entry(root, slug)
 
         if entry and _has_modified_local_copy(root, entry):
-            logger.warn(f"Skipped modified local post: {slug}")
+            logger.warn(f"수정된 로컬 글은 덮어쓰지 않고 건너뜁니다: {slug}")
             skipped += 1
             continue
 
@@ -172,4 +172,4 @@ def pull() -> None:
         else:
             created += 1
 
-    logger.success(f"Pull complete. {created} created, {updated} updated, {skipped} skipped.")
+    logger.success(f"Pull 완료: 생성 {created}개, 갱신 {updated}개, 건너뜀 {skipped}개")

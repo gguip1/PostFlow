@@ -113,15 +113,15 @@ def upload_image_file(
     except urllib.error.HTTPError as e:
         if e.code == 401:
             raise PermissionError(
-                "?몄쬆??留뚮즺?섏뿀?듬땲?? 'vcli login'?쇰줈 ?ㅼ떆 濡쒓렇?명븯?몄슂."
+                "인증이 만료되었습니다. 'vcli login'으로 다시 로그인하세요."
             )
-        raise ConnectionError(f"Velog image upload failed (HTTP {e.code}): {e.reason}")
+        raise ConnectionError(f"Velog 이미지 업로드 실패 (HTTP {e.code}): {e.reason}")
     except urllib.error.URLError as e:
-        raise ConnectionError(f"Velog image upload failed: {e}")
+        raise ConnectionError(f"Velog 이미지 업로드 실패: {e}")
 
     url = payload.get("path")
     if not url:
-        raise RuntimeError("Velog image upload response did not include a URL.")
+        raise RuntimeError("Velog 이미지 업로드 응답에 URL이 없습니다.")
     return url
 
 

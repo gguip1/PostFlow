@@ -8,9 +8,9 @@ from vcli.utils import logger
 
 def init(
     path: Path = typer.Option(
-        ".", "--path", "-p", help="Folder to initialize as a vcli workspace"
+        ".", "--path", "-p", help="vcli 저장소로 초기화할 폴더"
     ),
 ) -> None:
-    """Initialize a local .vcli store."""
+    """로컬 .vcli 저장소를 초기화합니다."""
     root = init_workspace(path)
-    logger.success(f"Initialized vcli workspace: {root / '.vcli'}")
+    logger.success(f"vcli 저장소를 초기화했습니다: {root / '.vcli'}")

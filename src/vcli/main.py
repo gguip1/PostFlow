@@ -14,8 +14,9 @@ from vcli.commands.status import status
 
 app = typer.Typer(
     name="vcli",
-    help="AI-first Velog writing CLI.",
+    help="AI 에이전트가 Velog 글을 안전하게 가져오고 발행하도록 돕는 CLI.",
     no_args_is_help=True,
+    add_completion=False,
 )
 
 app.command(name="create")(create)

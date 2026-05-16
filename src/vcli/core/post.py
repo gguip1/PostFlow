@@ -18,7 +18,7 @@ def create_post(
     post_dir = get_post_dir(root, slug)
 
     if post_dir.exists():
-        raise FileExistsError(f"post directory already exists: {slug}")
+        raise FileExistsError(f"글 폴더가 이미 있습니다: {slug}")
 
     meta = Meta(
         title=title,
@@ -41,7 +41,7 @@ def read_post(root: Path, slug: str) -> tuple[Meta, str]:
     post_dir = get_post_dir(root, slug)
 
     if not post_dir.exists():
-        raise FileNotFoundError(f"post directory not found: {slug}")
+        raise FileNotFoundError(f"글 폴더를 찾을 수 없습니다: {slug}")
 
     meta = Meta(**read_yaml(post_dir / "meta.yaml"))
     content = read_text(post_dir / "content.md")
@@ -51,5 +51,5 @@ def read_post(root: Path, slug: str) -> tuple[Meta, str]:
 def write_post_meta(root: Path, meta: Meta) -> None:
     post_dir = get_post_dir(root, meta.slug)
     if not post_dir.exists():
-        raise FileNotFoundError(f"post directory not found: {meta.slug}")
+        raise FileNotFoundError(f"글 폴더를 찾을 수 없습니다: {meta.slug}")
     write_yaml(post_dir / "meta.yaml", meta.model_dump(mode="json"))

@@ -9,17 +9,17 @@ from vcli.utils.paths import find_project_root
 
 def list_posts(
     status: str = typer.Option(
-        None, "--status", "-s", help="Filter by status: draft, modified, synced"
+        None, "--status", "-s", help="상태로 필터링: draft, modified, synced"
     ),
 ) -> None:
-    """List posts in the local .vcli store."""
+    """로컬 .vcli 저장소의 글 목록을 보여줍니다."""
     root = find_project_root()
     registry = load_registry(root)
 
     if status:
         valid_statuses = {"draft", "modified", "synced"}
         if status not in valid_statuses:
-            console.print("Status must be one of: draft, modified, synced")
+            console.print("상태는 draft, modified, synced 중 하나여야 합니다.")
             raise typer.Exit(1)
 
     rows = []
@@ -38,15 +38,15 @@ def list_posts(
 
     if not rows:
         if status:
-            console.print(f"No posts with status '{status}'.")
+            console.print(f"'{status}' 상태의 글이 없습니다.")
         else:
-            console.print("No posts yet. Run `vcli create` to start one.")
+            console.print("글이 없습니다. `vcli create`로 새 글을 만드세요.")
         return
 
-    table = Table(title=f"Posts ({len(rows)})")
-    table.add_column("Status", style="green")
+    table = Table(title=f"글 목록 ({len(rows)})")
+    table.add_column("상태", style="green")
     table.add_column("Slug", style="cyan")
-    table.add_column("Title")
+    table.add_column("제목")
     table.add_column("URL", style="dim")
 
     for row in rows:

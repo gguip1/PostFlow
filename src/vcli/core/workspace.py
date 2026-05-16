@@ -36,7 +36,7 @@ def find_workspace_root(start: Path | None = None) -> Path:
             return parent
 
     raise FileNotFoundError(
-        "vcli workspace not found. Run `vcli init` in the folder you want to manage."
+        "vcli 저장소를 찾을 수 없습니다. 관리할 폴더에서 `vcli init`을 실행하세요."
     )
 
 
