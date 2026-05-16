@@ -29,10 +29,13 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertTrue((self.tmp_root / ".vcli" / "config.yaml").exists())
         self.assertTrue((self.tmp_root / ".vcli" / "registry.yaml").exists())
+        self.assertTrue((self.tmp_root / ".vcli" / "uploads.yaml").exists())
         self.assertTrue((self.tmp_root / ".vcli" / "posts").is_dir())
 
         registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
         self.assertEqual(registry, {"version": 1, "posts": []})
+        uploads = read_yaml(self.tmp_root / ".vcli" / "uploads.yaml")
+        self.assertEqual(uploads, {"version": 1, "uploads": []})
 
     def test_calculate_status_is_draft_without_velog_id(self) -> None:
         from vcli.core.registry import RegistryEntry, calculate_status
@@ -249,6 +252,50 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("synced", status_result.stdout)
         self.assertIn("remote-post", status_result.stdout)
 
+    def test_find_image_urls_ignores_markdown_images_inside_fenced_code_blocks(self) -> None:
+        from vcli.commands.import_posts import _find_image_urls
+
+        body = (
+            "README에 한 줄이면 끝이에요.\n\n"
+            "```\n"
+            "![My Music](https://sound-badge.vercel.app/api/card.svg?url=유튜브_URL&theme=stream)\n"
+            "```\n\n"
+            "![real](https://example.com/image.png)\n"
+        )
+
+        self.assertEqual(_find_image_urls(body), ["https://example.com/image.png"])
+
+    def test_download_images_reports_processed_images(self) -> None:
+        import vcli.commands.import_posts as pull_command
+
+        self.runner.invoke(app, ["init"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "image-post"
+        post_dir.mkdir(parents=True)
+        messages: list[str] = []
+
+        class DummyResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return None
+
+            def read(self):
+                return b"image-bytes"
+
+        def fake_urlopen(req, timeout=30):
+            return DummyResponse()
+
+        with unittest.mock.patch.object(pull_command, "urlopen", fake_urlopen), \
+             unittest.mock.patch.object(pull_command.logger, "info", messages.append):
+            result = pull_command._download_images(
+                "![image](https://example.com/image.png)",
+                post_dir,
+            )
+
+        self.assertIn("./images/image-1-", result)
+        self.assertEqual(messages, ["Processed images: 1/1"])
+
     def test_pull_skips_modified_local_post(self) -> None:
         import vcli.commands.import_posts as pull_command
         from vcli.core.hashing import hash_post
@@ -294,6 +341,48 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Local Edit\n")
         self.assertIn("Skipped modified local post", result.stdout)
+
+    def test_pull_refreshes_registry_entry_with_missing_local_files(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="missing-local",
+                velog_id="velog-1",
+                url="https://velog.io/@me/missing-local",
+                last_synced_hash="old-hash",
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        remote_posts = [
+            {
+                "id": "velog-1",
+                "title": "Missing Local",
+                "url_slug": "missing-local",
+                "tags": ["velog"],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-16T12:30:00Z",
+                "short_description": "Remote description",
+                "body": "# Restored\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        post_dir = self.tmp_root / ".vcli" / "posts" / "missing-local"
+        self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Restored\n")
+        self.assertTrue((post_dir / "meta.yaml").exists())
+        self.assertIn("Refreshing invalid local post", result.stdout)
 
     def test_push_single_draft_creates_remote_and_marks_synced(self) -> None:
         import vcli.commands.push as push_command
@@ -376,3 +465,71 @@ class LocalVcliStoreTests(unittest.TestCase):
         status_result = self.runner.invoke(app, ["status"])
         self.assertIn("synced", status_result.stdout)
         self.assertIn("update-me", status_result.stdout)
+
+    def test_push_interactive_prompt_explains_space_selection(self) -> None:
+        import vcli.commands.push as push_command
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "select-me", "--title", "Select Me"])
+
+        captured_prompt: dict = {}
+
+        class DummyPrompt:
+            def execute(self):
+                return []
+
+        def fake_checkbox(**kwargs):
+            captured_prompt.update(kwargs)
+            return DummyPrompt()
+
+        class DummyAdapter:
+            pass
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter), \
+             unittest.mock.patch.object(push_command.inquirer, "checkbox", fake_checkbox):
+            result = self.runner.invoke(app, ["push"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertIn("Space", captured_prompt.get("instruction", ""))
+        self.assertIn("Enter", captured_prompt.get("instruction", ""))
+
+    def test_push_without_slug_skips_registry_entries_with_missing_local_files(self) -> None:
+        import vcli.commands.push as push_command
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "select-me", "--title", "Select Me"])
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="missing-local",
+                velog_id="velog-1",
+                url="https://velog.io/@me/missing-local",
+                last_synced_hash="old-hash",
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        captured_prompt: dict = {}
+
+        class DummyPrompt:
+            def execute(self):
+                return []
+
+        def fake_checkbox(**kwargs):
+            captured_prompt.update(kwargs)
+            return DummyPrompt()
+
+        class DummyAdapter:
+            pass
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter), \
+             unittest.mock.patch.object(push_command.inquirer, "checkbox", fake_checkbox):
+            result = self.runner.invoke(app, ["push"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        choice_values = [choice["value"] for choice in captured_prompt["choices"]]
+        self.assertEqual(choice_values, ["select-me"])
+        self.assertIn("Skipped invalid local post", result.stdout)

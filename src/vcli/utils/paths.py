@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vcli.core.workspace import find_workspace_root, posts_dir, registry_path
+from vcli.core.workspace import find_workspace_root, posts_dir, registry_path, uploads_path
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -17,6 +17,10 @@ def get_post_dir(root: Path, slug: str, posts_dir_name: str = "posts") -> Path:
 
 def get_registry_path(root: Path, posts_dir_name: str = "posts") -> Path:
     return registry_path(root)
+
+
+def get_uploads_path(root: Path) -> Path:
+    return uploads_path(root)
 
 
 def get_config_path(root: Path) -> Path:

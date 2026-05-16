@@ -11,6 +11,7 @@ import typer
 from vcli.adapters.velog.api import get_current_user, get_user_posts
 from vcli.adapters.velog.auth import check_auth
 from vcli.core.hashing import hash_post
+from vcli.core.images import file_sha256, strip_fenced_code_blocks
 from vcli.core.registry import calculate_status, find_entry, upsert_entry
 from vcli.models import Meta, RegistryEntry
 from vcli.utils import logger
@@ -34,6 +35,7 @@ def _slugify(text: str) -> str:
 
 
 def _find_image_urls(body: str) -> list[str]:
+    body = strip_fenced_code_blocks(body)
     urls: list[str] = []
     for match in re.finditer(r"!\[[^\]]*\]\((https?://[^)]+)\)", body):
         urls.append(match.group(1))
@@ -70,7 +72,7 @@ def _download_images(body: str, post_dir: Path) -> str:
     else:
         mapping = {}
 
-    downloaded = 0
+    processed = 0
     for index, url in enumerate(urls):
         try:
             filename = _make_filename(url, index)
@@ -81,9 +83,13 @@ def _download_images(body: str, post_dir: Path) -> str:
                     local_path.write_bytes(resp.read())
 
             local_ref = f"./images/{filename}"
-            mapping[local_ref] = url
+            mapping[local_ref] = {
+                "url": url,
+                "sha256": file_sha256(local_path),
+                "source": "pull",
+            }
             body = body.replace(url, local_ref)
-            downloaded += 1
+            processed += 1
         except Exception:
             logger.warn(f"Failed to download image: {url}")
 
@@ -93,10 +99,18 @@ def _download_images(body: str, post_dir: Path) -> str:
             encoding="utf-8",
         )
 
-    if downloaded:
-        logger.info(f"Downloaded images: {downloaded}/{len(urls)}")
+    if processed:
+        logger.info(f"Processed images: {processed}/{len(urls)}")
 
     return body
+
+
+def _has_modified_local_copy(root: Path, entry) -> bool:
+    try:
+        return calculate_status(root, entry) == "modified"
+    except FileNotFoundError as error:
+        logger.warn(f"Refreshing invalid local post: {entry.slug} ({error})")
+        return False
 
 
 def pull() -> None:
@@ -121,7 +135,7 @@ def pull() -> None:
         slug = post.get("url_slug") or _slugify(post["title"])
         entry = find_entry(root, slug)
 
-        if entry and calculate_status(root, entry) == "modified":
+        if entry and _has_modified_local_copy(root, entry):
             logger.warn(f"Skipped modified local post: {slug}")
             skipped += 1
             continue

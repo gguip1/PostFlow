@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vcli.models import Config
+from vcli.models import Config, UploadRegistry
 from vcli.utils.fs import read_yaml, write_yaml
 
 
@@ -14,6 +14,10 @@ def config_path(root: Path) -> Path:
 
 def registry_path(root: Path) -> Path:
     return workspace_dir(root) / "registry.yaml"
+
+
+def uploads_path(root: Path) -> Path:
+    return workspace_dir(root) / "uploads.yaml"
 
 
 def posts_dir(root: Path) -> Path:
@@ -44,6 +48,9 @@ def init_workspace(root: Path) -> Path:
 
     if not config_path(resolved).exists():
         write_yaml(config_path(resolved), Config().model_dump(mode="json"))
+
+    if not uploads_path(resolved).exists():
+        write_yaml(uploads_path(resolved), UploadRegistry().model_dump(mode="json"))
 
     registry = {}
     if registry_path(resolved).exists():
