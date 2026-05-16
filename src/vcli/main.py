@@ -8,7 +8,7 @@ from vcli.commands.init import init
 from vcli.commands.list import list_posts
 from vcli.commands.login import login_cmd
 from vcli.commands.logout import logout
-from vcli.commands.publish import publish
+from vcli.commands.publish import push
 from vcli.commands.status import status
 
 app = typer.Typer(
@@ -23,7 +23,8 @@ app.command(name="check")(check)
 app.command(name="doctor")(doctor)
 app.command(name="login")(login_cmd)
 app.command(name="logout")(logout)
-app.command(name="publish")(publish)
+app.command(name="push")(push)
+app.command(name="publish", hidden=True, deprecated=True)(push)
 app.command(name="pull")(pull)
 app.command(name="sync", hidden=True, deprecated=True)(pull)
 app.command(name="init")(init)

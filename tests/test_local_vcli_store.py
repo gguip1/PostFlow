@@ -290,3 +290,85 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.stdout)
         self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Local Edit\n")
         self.assertIn("Skipped modified local post", result.stdout)
+
+    def test_push_single_draft_creates_remote_and_marks_synced(self) -> None:
+        import vcli.commands.publish as push_command
+        from vcli.adapters.velog.adapter import PublishResult
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "push-me", "--title", "Push Me"])
+
+        class DummyAdapter:
+            def create(self, post):
+                return PublishResult(
+                    success=True,
+                    post_id="velog-created",
+                    url="https://velog.io/@me/push-me",
+                    published_at="2026-05-16T13:00:00Z",
+                )
+
+            def update(self, post_id, post):
+                return self.create(post)
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
+            result = self.runner.invoke(app, ["push", "push-me"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        entry = registry["posts"][0]
+        self.assertEqual(entry["velog_id"], "velog-created")
+        self.assertEqual(entry["url"], "https://velog.io/@me/push-me")
+        self.assertIsNotNone(entry["last_synced_hash"])
+
+        status_result = self.runner.invoke(app, ["status"])
+        self.assertIn("synced", status_result.stdout)
+        self.assertIn("push-me", status_result.stdout)
+
+    def test_push_existing_remote_uses_update(self) -> None:
+        import vcli.commands.publish as push_command
+        from vcli.adapters.velog.adapter import PublishResult
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "update-me", "--title", "Update Me"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "update-me"
+        baseline_hash = hash_post(post_dir)
+        (post_dir / "content.md").write_text("# Updated\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="update-me",
+                velog_id="velog-existing",
+                url="https://velog.io/@me/update-me",
+                last_synced_hash=baseline_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        calls: list[tuple[str, str | None]] = []
+
+        class DummyAdapter:
+            def create(self, post):
+                calls.append(("create", None))
+                return PublishResult(success=False, error="create should not be called")
+
+            def update(self, post_id, post):
+                calls.append(("update", post_id))
+                return PublishResult(
+                    success=True,
+                    post_id=post_id,
+                    url="https://velog.io/@me/update-me",
+                    published_at="2026-05-16T13:00:00Z",
+                )
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
+            result = self.runner.invoke(app, ["push", "update-me"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertEqual(calls, [("update", "velog-existing")])
+        status_result = self.runner.invoke(app, ["status"])
+        self.assertIn("synced", status_result.stdout)
+        self.assertIn("update-me", status_result.stdout)
