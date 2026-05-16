@@ -1,12 +1,8 @@
 # unofficial-velog-cli
 
-AI agent가 Velog 글을 로컬에서 작성, 검토, 동기화할 수 있게 해주는 CLI입니다.
+AI agent가 Velog 글을 로컬 `.vcli` 저장소에서 가져오고, 수정하고, 발행할 수 있게 돕는 CLI입니다.
 
-## 목적
-
-- AI가 작성한 글을 Velog에 올릴 때 생기는 복사/붙여넣기 작업을 줄입니다.
-- `vcli`는 블로그 CMS가 아니라 Velog pull/push 어댑터입니다.
-- 글쓰기 기획, 시리즈 관리, 임시 메모 관리는 사용자가 원하는 폴더에서 자유롭게 하고, 실제 Velog와 맞출 글만 `.vcli/posts`에서 관리합니다.
+`vcli`는 블로그 CMS가 아니라 Velog pull/push 어댑터입니다. 글 기획, 시리즈 관리, 외부 초안 정리는 사용자가 원하는 폴더에서 자유롭게 관리하고, 실제 Velog와 동기화되는 글만 `.vcli/posts`에서 관리합니다.
 
 ## 설치
 
@@ -39,7 +35,7 @@ vcli push ai-velog-workflow
 | 명령어 | 설명 |
 |--------|------|
 | `vcli init` | 현재 폴더에 로컬 `.vcli` 저장소 생성 |
-| `vcli login` | Velog 인증 저장 |
+| `vcli login` | 현재 `.vcli` 저장소에 Velog 인증 저장 |
 | `vcli pull` | Velog 글을 `.vcli/posts`로 가져오기 |
 | `vcli create <slug>` | `.vcli/posts/<slug>`에 로컬 draft 생성 |
 | `vcli list` | 로컬 글 목록과 계산된 상태 출력 |
@@ -48,6 +44,7 @@ vcli push ai-velog-workflow
 | `vcli doctor` | `.vcli` 저장소와 인증 상태 점검 |
 | `vcli push` | draft/modified 글을 선택해서 Velog에 반영 |
 | `vcli push <slug>` | 특정 글 하나를 Velog에 발행 또는 수정 |
+| `vcli image upload <path>` | 로컬 이미지를 Velog CDN에 업로드하고 URL 출력 |
 
 ## 상태 모델
 
@@ -59,7 +56,7 @@ vcli push ai-velog-workflow
 | `modified` | `velog_id`가 있고 현재 파일 hash가 `last_synced_hash`와 다른 글 |
 | `synced` | `velog_id`가 있고 현재 파일 hash가 `last_synced_hash`와 같은 글 |
 
-Velog에 쓰기 작업을 하는 명령은 `vcli push`뿐입니다.
+글 생성/수정처럼 Velog 글에 쓰기 작업을 하는 명령은 `vcli push`입니다. 이미지는 `vcli image upload`로 별도 업로드하고, 출력된 URL을 본문에 직접 넣습니다.
 
 ## 로컬 저장소 구조
 
@@ -68,6 +65,7 @@ project/
   .vcli/
     config.yaml
     registry.yaml
+    uploads.yaml
     posts/
       <slug>/
         content.md
@@ -78,12 +76,25 @@ project/
 
 Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저장합니다.
 
-## Agent Skills
+## 이미지 업로드
 
-이 저장소의 vcli 전용 agent 지침은 `.agents/skills/vcli-*`에 둡니다. 별도 글로벌 설치는 필요하지 않습니다.
+`vcli`는 이미지를 본문에 자동 연결하지 않습니다. 로컬 이미지는 먼저 업로드한 뒤 출력된 URL을 `content.md`에 직접 넣습니다.
+
+```bash
+vcli image upload .vcli/posts/my-post/images/diagram.png
+```
+
+agent가 파싱해야 하면 `--json`을 사용합니다.
+
+```bash
+vcli image upload .vcli/posts/my-post/images/diagram.png --json
+```
+
+업로드 기록은 `.vcli/uploads.yaml`에 저장합니다. `push`는 `mapping.json`으로 복원할 수 없는 로컬 이미지 경로가 본문에 남아 있으면 발행을 막습니다.
 
 ## 주의사항
 
 - `create`와 파일 수정은 발행하지 않습니다.
 - 사용자 명시적 승인 전에는 `push`를 실행하지 마세요.
-- `push --all`은 초기 모델에서 지원하지 않습니다.
+- `push --all`은 지원하지 않습니다.
+- 새 로컬 이미지는 `vcli image upload <path>`로 업로드하고 출력된 URL을 본문에 넣어야 합니다.

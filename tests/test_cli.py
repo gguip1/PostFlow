@@ -64,13 +64,10 @@ class VcliCliSmokeTests(unittest.TestCase):
 
         self.assertTrue((repo_root / "src/vcli/commands/push.py").exists())
 
-    def test_agent_skills_are_repo_local_and_push_named(self) -> None:
+    def test_agent_skill_distribution_is_removed(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
-        self.assertTrue((repo_root / ".agents/skills/vcli-push-gate/SKILL.md").exists())
-        self.assertFalse(
-            (repo_root / ".agents/skills" / ("vcli-" + "publish" + "-gate")).exists()
-        )
+        self.assertFalse((repo_root / ".agents" / "skills").exists())
         self.assertFalse((repo_root / "scripts" / ("install-global" + "-skill.py")).exists())
 
     def test_auth_path_is_inside_local_vcli_store(self) -> None:

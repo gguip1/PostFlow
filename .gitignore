@@ -1,6 +1,8 @@
-# 사용자 설정 (포크 후 init으로 생성)
+# Local vcli workspace used for manual testing in this repository.
+.vcli/
+
+# Legacy/user config
 config/vcli.yaml
-.vcli/velog-auth.json
 
 # Python
 __pycache__/
@@ -11,6 +13,9 @@ venv/
 *.egg-info/
 dist/
 build/
+
+# Local planning docs
+docs/
 
 # IDE
 .vscode/
