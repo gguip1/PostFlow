@@ -1,6 +1,6 @@
 # unofficial-velog-cli
 
-AI 에이전트가 Velog 글을 로컬 `.vcli` 저장소에서 가져오고, 수정하고, 발행할 수 있게 돕는 CLI입니다.
+Velog 글을 로컬 `.vcli` 저장소로 가져오고, 수정하고, 발행할 수 있게 돕는 CLI입니다.
 
 `vcli`는 블로그 CMS가 아니라 Velog pull/push 어댑터입니다. 글 기획, 시리즈 관리, 외부 초안 정리는 사용자가 원하는 폴더에서 자유롭게 관리하고, 실제 Velog와 동기화되는 글만 `.vcli/posts`에서 관리합니다.
 
@@ -25,9 +25,9 @@ pip install -e .
 vcli init
 vcli login
 vcli pull
-vcli create ai-velog-workflow --title "AI로 쓰는 Velog 워크플로우" --tags velog,cli
+vcli create my-velog-post --title "Velog 글 작성하기" --tags velog,cli
 vcli status
-vcli push ai-velog-workflow
+vcli push my-velog-post
 ```
 
 ## 기본 명령
@@ -84,7 +84,7 @@ Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저�
 vcli image upload .vcli/posts/my-post/images/diagram.png
 ```
 
-에이전트가 파싱해야 하면 `--json`을 사용합니다.
+스크립트에서 결과를 파싱해야 하면 `--json`을 사용합니다.
 
 ```bash
 vcli image upload .vcli/posts/my-post/images/diagram.png --json
