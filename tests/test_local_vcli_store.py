@@ -145,3 +145,18 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(meta["slug"], "agent-post")
         self.assertEqual(meta["tags"], ["velog", "cli"])
         self.assertEqual(meta["visibility"], "private")
+
+    def test_create_with_required_arguments_does_not_prompt_for_optional_fields(self) -> None:
+        self.runner.invoke(app, ["init"])
+
+        result = self.runner.invoke(
+            app,
+            ["create", "minimal-post", "--title", "Minimal Post"],
+        )
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        post_dir = self.tmp_root / ".vcli" / "posts" / "minimal-post"
+        meta = read_yaml(post_dir / "meta.yaml")
+        self.assertEqual(meta["title"], "Minimal Post")
+        self.assertEqual(meta["tags"], [])
+        self.assertEqual(meta["description"], "")

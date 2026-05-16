@@ -20,6 +20,7 @@ def create(
     title: str = typer.Option(None, "--title", "-t", help="Post title"),
     slug: str = typer.Option(None, "--slug", "-s", help="Post slug"),
     tags: str = typer.Option(None, "--tags", help="Comma-separated tags"),
+    description: str = typer.Option("", "--description", "-d", help="Post description"),
     visibility: str = typer.Option(
         "public", "--visibility", "-v", help="Visibility: public or private"
     ),
@@ -27,6 +28,7 @@ def create(
 ) -> None:
     """Create a new draft post."""
     root = find_project_root()
+    interactive = title is None and slug is None and post_slug is None
 
     if visibility not in {"public", "private"}:
         logger.error("visibility must be public or private")
@@ -40,7 +42,7 @@ def create(
         slug = typer.prompt("Post slug", default=_slugify(title))
 
     parsed_tags: list[str] = []
-    if tags is None:
+    if tags is None and interactive:
         tags = typer.prompt("Tags (comma-separated)", default="")
     if tags:
         parsed_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
@@ -52,6 +54,7 @@ def create(
             slug=slug,
             tags=parsed_tags,
             visibility=visibility,
+            description=description,
             series=series,
         )
     except (FileExistsError, ValueError) as error:
