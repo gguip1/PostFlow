@@ -296,7 +296,7 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("Skipped modified local post", result.stdout)
 
     def test_push_single_draft_creates_remote_and_marks_synced(self) -> None:
-        import vcli.commands.publish as push_command
+        import vcli.commands.push as push_command
         from vcli.adapters.velog.adapter import PublishResult
 
         self.runner.invoke(app, ["init"])
@@ -330,7 +330,7 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("push-me", status_result.stdout)
 
     def test_push_existing_remote_uses_update(self) -> None:
-        import vcli.commands.publish as push_command
+        import vcli.commands.push as push_command
         from vcli.adapters.velog.adapter import PublishResult
         from vcli.core.hashing import hash_post
         from vcli.core.registry import RegistryEntry, upsert_entry

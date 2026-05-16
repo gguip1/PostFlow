@@ -159,6 +159,3 @@ def pull() -> None:
             created += 1
 
     logger.success(f"Pull complete. {created} created, {updated} updated, {skipped} skipped.")
-
-
-sync_posts = pull

@@ -101,6 +101,3 @@ def push(slug: str | None = typer.Argument(None, help="Post slug to push")) -> N
         entry = find_entry(root, selected_slug)
         if entry:
             _push_entry(root, entry, adapter)
-
-
-publish = push

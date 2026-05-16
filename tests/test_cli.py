@@ -43,6 +43,27 @@ class VcliCliSmokeTests(unittest.TestCase):
         self.assertIn("draft", status_result.stdout)
         self.assertIn("hello-velog", status_result.stdout)
 
+    def test_removed_legacy_commands_are_not_available(self) -> None:
+        for command in ("publish", "sync", "ready", "root", "workspace"):
+            result = self.runner.invoke(app, [command, "--help"])
+
+            self.assertNotEqual(result.exit_code, 0, command)
+
+    def test_legacy_command_modules_are_removed(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        for relative_path in (
+            "src/vcli/commands/publish.py",
+            "src/vcli/commands/ready.py",
+            "src/vcli/commands/root.py",
+            "src/vcli/commands/workspace.py",
+            "src/vcli/core/global_config.py",
+            "src/vcli/models/global_config.py",
+        ):
+            self.assertFalse((repo_root / relative_path).exists(), relative_path)
+
+        self.assertTrue((repo_root / "src/vcli/commands/push.py").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

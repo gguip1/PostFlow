@@ -98,4 +98,3 @@ python scripts/install-global-skill.py --target claude
 - `create`와 파일 수정은 발행하지 않습니다.
 - 사용자 명시적 승인 전에는 `push`를 실행하지 마세요.
 - `push --all`은 초기 모델에서 지원하지 않습니다.
-- `ready`, `publish`, `sync`, `root`, `workspace` 중심 흐름은 deprecated입니다.
