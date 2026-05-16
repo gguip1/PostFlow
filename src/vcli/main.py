@@ -3,7 +3,7 @@ import typer
 from vcli.commands.check import check
 from vcli.commands.create import create
 from vcli.commands.doctor import doctor
-from vcli.commands.import_posts import sync_posts
+from vcli.commands.import_posts import pull
 from vcli.commands.init import init
 from vcli.commands.list import list_posts
 from vcli.commands.login import login_cmd
@@ -24,7 +24,8 @@ app.command(name="doctor")(doctor)
 app.command(name="login")(login_cmd)
 app.command(name="logout")(logout)
 app.command(name="publish")(publish)
-app.command(name="sync")(sync_posts)
+app.command(name="pull")(pull)
+app.command(name="sync", hidden=True, deprecated=True)(pull)
 app.command(name="init")(init)
 app.command(name="status")(status)
 

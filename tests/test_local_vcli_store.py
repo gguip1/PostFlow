@@ -1,6 +1,7 @@
 import os
 import shutil
 import unittest
+import unittest.mock
 from pathlib import Path
 from uuid import uuid4
 
@@ -205,3 +206,87 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("synced-post", result.stdout)
         self.assertIn("modified", result.stdout)
         self.assertIn("modified-post", result.stdout)
+
+    def test_pull_imports_remote_post_and_marks_synced(self) -> None:
+        import vcli.commands.import_posts as pull_command
+
+        self.runner.invoke(app, ["init"])
+        remote_posts = [
+            {
+                "id": "velog-1",
+                "title": "Remote Post",
+                "url_slug": "remote-post",
+                "tags": ["velog"],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-16T12:00:00Z",
+                "short_description": "Remote description",
+                "body": "# Remote Post\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        post_dir = self.tmp_root / ".vcli" / "posts" / "remote-post"
+        self.assertTrue((post_dir / "content.md").exists())
+
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertEqual(registry["posts"][0]["slug"], "remote-post")
+        self.assertEqual(registry["posts"][0]["velog_id"], "velog-1")
+        self.assertEqual(registry["posts"][0]["url"], "https://velog.io/@me/remote-post")
+        self.assertIsNotNone(registry["posts"][0]["last_synced_hash"])
+
+        status_result = self.runner.invoke(app, ["status"])
+        self.assertIn("synced", status_result.stdout)
+        self.assertIn("remote-post", status_result.stdout)
+
+    def test_pull_skips_modified_local_post(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "remote-post", "--title", "Remote Post"])
+
+        post_dir = self.tmp_root / ".vcli" / "posts" / "remote-post"
+        baseline_hash = hash_post(post_dir)
+        (post_dir / "content.md").write_text("# Local Edit\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="remote-post",
+                velog_id="velog-1",
+                url="https://velog.io/@me/remote-post",
+                last_synced_hash=baseline_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        remote_posts = [
+            {
+                "id": "velog-1",
+                "title": "Remote Post",
+                "url_slug": "remote-post",
+                "tags": ["velog"],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-16T12:30:00Z",
+                "short_description": "Remote description",
+                "body": "# Remote Edit\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Local Edit\n")
+        self.assertIn("Skipped modified local post", result.stdout)
