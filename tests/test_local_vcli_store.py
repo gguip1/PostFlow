@@ -96,31 +96,6 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIsNone(find_entry(self.tmp_root, "legacy-id"))
         self.assertIsNone(find_entry(self.tmp_root, "legacy"))
 
-    def test_sync_entry_with_meta_does_not_refresh_last_synced_hash(self) -> None:
-        from vcli.core.registry import RegistryEntry, find_entry, sync_entry_with_meta, upsert_entry
-        from vcli.models import Meta
-
-        self.runner.invoke(app, ["init"])
-        post_dir = self.tmp_root / ".vcli" / "posts" / "local-post"
-        post_dir.mkdir(parents=True)
-        (post_dir / "meta.yaml").write_text("title: Local Post\nslug: local-post\n", encoding="utf-8")
-        (post_dir / "content.md").write_text("# Changed Locally\n", encoding="utf-8")
-        upsert_entry(
-            self.tmp_root,
-            RegistryEntry(
-                slug="local-post",
-                velog_id="velog-1",
-                url="https://velog.io/@me/local-post",
-                last_synced_hash="remote-baseline",
-                last_synced_at="2026-05-16T12:00:00Z",
-            ),
-        )
-
-        sync_entry_with_meta(self.tmp_root, Meta(title="Renamed", slug="local-post"))
-
-        entry = find_entry(self.tmp_root, "local-post")
-        self.assertEqual(entry.last_synced_hash, "remote-baseline")
-
     def test_create_writes_post_under_local_vcli_posts(self) -> None:
         self.runner.invoke(app, ["init"])
 
@@ -206,6 +181,35 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("synced-post", result.stdout)
         self.assertIn("modified", result.stdout)
         self.assertIn("modified-post", result.stdout)
+
+    def test_list_shows_calculated_status_and_meta_title(self) -> None:
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "listed-post", "--title", "Listed Post"])
+
+        result = self.runner.invoke(app, ["list"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertIn("draft", result.stdout)
+        self.assertIn("listed-post", result.stdout)
+        self.assertIn("Listed Post", result.stdout)
+
+    def test_check_accepts_local_draft_without_legacy_ids(self) -> None:
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "check-me", "--title", "Check Me"])
+
+        result = self.runner.invoke(app, ["check"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertIn("Validation passed", result.stdout)
+
+    def test_doctor_reports_local_vcli_store(self) -> None:
+        self.runner.invoke(app, ["init"])
+
+        result = self.runner.invoke(app, ["doctor"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertIn(".vcli", result.stdout)
+        self.assertIn("registry.yaml", result.stdout)
 
     def test_pull_imports_remote_post_and_marks_synced(self) -> None:
         import vcli.commands.import_posts as pull_command

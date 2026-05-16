@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class VelogConfig(BaseModel):
@@ -13,5 +13,5 @@ class Settings(BaseModel):
 class Config(BaseModel):
     version: int = 1
     posts_dir: str = "posts"
-    velog: VelogConfig = VelogConfig()
-    settings: Settings = Settings()
+    velog: VelogConfig = Field(default_factory=VelogConfig)
+    settings: Settings = Field(default_factory=Settings)
