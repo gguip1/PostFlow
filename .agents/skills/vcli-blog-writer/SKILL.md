@@ -16,7 +16,7 @@ Treat this skill as the only user-facing entrypoint. Use the other `vcli-*` skil
 5. Use `vcli-post-drafter` to write `content.md` and update `meta.yaml`.
 6. Use `vcli-review-loop` to refine the draft through user feedback.
 7. Use `vcli-image-planner` when the post may benefit from screenshots, diagrams, or a thumbnail. If an image should actually be generated, use the existing `imagegen` skill.
-8. Use `vcli-publish-gate` before any `vcli push` command.
+8. Use `vcli-push-gate` before any `vcli push` command.
 
 ## Rules
 

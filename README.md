@@ -78,20 +78,9 @@ project/
 
 Velog 인증 세션은 프로젝트별이 아니라 전역 `~/.vcli/velog-auth.json`에 저장합니다.
 
-## 전역 Skill 설치
+## Agent Skills
 
-이 저장소 안의 `vcli-*` skill 세트를 전역 Codex/Claude skill 디렉터리로 복사합니다.
-
-```bash
-python scripts/install-global-skill.py
-```
-
-특정 대상만 설치:
-
-```bash
-python scripts/install-global-skill.py --target codex
-python scripts/install-global-skill.py --target claude
-```
+이 저장소의 vcli 전용 agent 지침은 `.agents/skills/vcli-*`에 둡니다. 별도 글로벌 설치는 필요하지 않습니다.
 
 ## 주의사항
 
