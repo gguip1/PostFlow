@@ -62,8 +62,3 @@ State is calculated, not stored.
 - `pull` may download remote images into `.vcli/posts/<slug>/images/`.
 - Pull image mappings live in `.vcli/posts/<slug>/images/mapping.json` and include hashes when possible.
 - `push` restores only mapped local image refs whose hash still matches.
-
-## Skills Policy
-
-- Do not distribute repo-local `.agents/skills`.
-- Agents should rely on this `AGENTS.md` and the `vcli` commands only.

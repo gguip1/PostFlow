@@ -1,22 +1,33 @@
 # unofficial-velog-cli
 
-AI 에이전트가 Velog 글을 로컬 `.vcli` 저장소에서 가져오고, 수정하고, 발행할 수 있게 돕는 CLI입니다.
+Velog 글을 로컬 `.vcli` 저장소로 가져오고, 수정하고, 발행할 수 있게 돕는 CLI입니다.
 
 `vcli`는 블로그 CMS가 아니라 Velog pull/push 어댑터입니다. 글 기획, 시리즈 관리, 외부 초안 정리는 사용자가 원하는 폴더에서 자유롭게 관리하고, 실제 Velog와 동기화되는 글만 `.vcli/posts`에서 관리합니다.
 
 ## 설치
 
+Python 3.12 이상이 필요합니다.
+
+단순히 사용하려면 저장소를 clone한 뒤 editable 모드로 설치합니다.
+
 ```bash
+git clone https://github.com/gguip1/unofficial-velog-cli.git
+cd unofficial-velog-cli
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+python -m pip install -e .
 ```
 
-Windows PowerShell:
+기여하려면 먼저 GitHub에서 fork한 뒤 clone URL을 본인 fork 주소로 바꾸면 됩니다.
+
+Windows PowerShell에서는 다음처럼 설치합니다.
 
 ```powershell
-.venv\Scripts\activate
-pip install -e .
+git clone https://github.com/gguip1/unofficial-velog-cli.git
+cd unofficial-velog-cli
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
 ```
 
 ## 빠른 시작
@@ -25,9 +36,9 @@ pip install -e .
 vcli init
 vcli login
 vcli pull
-vcli create ai-velog-workflow --title "AI로 쓰는 Velog 워크플로우" --tags velog,cli
+vcli create my-velog-post --title "Velog 글 작성하기" --tags velog,cli
 vcli status
-vcli push ai-velog-workflow
+vcli push my-velog-post
 ```
 
 ## 기본 명령
@@ -84,7 +95,7 @@ Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저�
 vcli image upload .vcli/posts/my-post/images/diagram.png
 ```
 
-에이전트가 파싱해야 하면 `--json`을 사용합니다.
+스크립트에서 결과를 파싱해야 하면 `--json`을 사용합니다.
 
 ```bash
 vcli image upload .vcli/posts/my-post/images/diagram.png --json
