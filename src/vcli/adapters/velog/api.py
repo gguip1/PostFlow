@@ -132,16 +132,47 @@ def get_current_user() -> dict | None:
 
 def get_user_posts(username: str) -> list[dict]:
     """사용자의 모든 글을 가져온다."""
-    query = """query {
-        posts(input: { username: "%s" }) {
+    query = """query GetUserPosts($input: GetPostsInput!) {
+        posts(input: $input) {
             id title url_slug tags is_private
             released_at updated_at short_description body
             series { id name }
         }
-    }""" % username
+    }"""
+    posts: list[dict] = []
+    seen_ids: set[str] = set()
+    cursor: str | None = None
 
-    result = _graphql(query)
-    return result.get("data", {}).get("posts", [])
+    while True:
+        input_data: dict[str, object] = {"username": username, "limit": 100}
+        if cursor:
+            input_data["cursor"] = cursor
+
+        result = _graphql(query, {"input": input_data})
+        if result.get("errors"):
+            message = result["errors"][0].get("message", str(result["errors"]))
+            raise RuntimeError(
+                f"Velog 글 목록을 완전히 가져오지 못했습니다: {message}"
+            )
+
+        data = result.get("data")
+        page = data.get("posts") if isinstance(data, dict) else None
+        if not isinstance(page, list):
+            raise RuntimeError("Velog 글 목록 응답이 올바르지 않습니다.")
+        if not page:
+            return posts
+
+        for post in page:
+            if not isinstance(post, dict) or not post.get("id"):
+                raise RuntimeError("Velog 글 목록에 식별자가 없는 항목이 있습니다.")
+            if post["id"] in seen_ids:
+                raise RuntimeError(
+                    "Velog 글 목록 페이지가 중복되어 전체 목록을 확인할 수 없습니다."
+                )
+            seen_ids.add(post["id"])
+            posts.append(post)
+
+        cursor = page[-1]["id"]
 
 
 def write_post(

@@ -12,7 +12,13 @@ from vcli.adapters.velog.api import get_current_user, get_user_posts
 from vcli.adapters.velog.auth import check_auth
 from vcli.core.hashing import hash_post
 from vcli.core.images import file_sha256, strip_fenced_code_blocks
-from vcli.core.registry import calculate_status, find_entry, upsert_entry
+from vcli.core.registry import (
+    calculate_status,
+    find_entry,
+    find_entry_by_velog_id,
+    load_registry,
+    upsert_entry,
+)
 from vcli.models import Meta, RegistryEntry
 from vcli.utils import logger
 from vcli.utils.fs import write_text, write_yaml
@@ -130,12 +136,92 @@ def pull() -> None:
     created = 0
     updated = 0
     skipped = 0
+    missing = 0
 
-    for post in get_user_posts(username):
+    try:
+        remote_posts = get_user_posts(username)
+    except (ConnectionError, RuntimeError) as error:
+        logger.error(str(error))
+        logger.warn("원격 목록을 완전히 확인하지 못해 누락 판정을 수행하지 않습니다.")
+        raise typer.Exit(1) from error
+
+    remote_ids = {post["id"] for post in remote_posts}
+
+    for post in remote_posts:
         slug = post.get("url_slug") or _slugify(post["title"])
-        entry = find_entry(root, slug)
+        velog_id = post["id"]
+        entry = find_entry_by_velog_id(root, velog_id)
+        slug_entry = find_entry(root, slug)
+
+        if entry is None and slug_entry is not None:
+            logger.warn(
+                f"원격 글을 가져오지 못했습니다. 로컬 slug가 다른 글에서 사용 중입니다: {slug}"
+            )
+            skipped += 1
+            continue
+
+        if entry and entry.slug != slug:
+            old_slug = entry.slug
+            old_dir = get_post_dir(root, old_slug)
+            new_dir = get_post_dir(root, slug)
+
+            if _has_modified_local_copy(root, entry):
+                upsert_entry(
+                    root,
+                    entry.model_copy(
+                        update={
+                            "url": f"https://velog.io/@{username}/{slug}",
+                            "remote_missing_at": None,
+                            "remote_slug": slug,
+                        }
+                    ),
+                )
+                logger.warn(
+                    f"원격 slug 변경과 로컬 수정이 충돌합니다: {old_slug} -> {slug}"
+                )
+                skipped += 1
+                continue
+
+            if new_dir.exists():
+                upsert_entry(
+                    root,
+                    entry.model_copy(
+                        update={
+                            "url": f"https://velog.io/@{username}/{slug}",
+                            "remote_missing_at": None,
+                            "remote_slug": slug,
+                        }
+                    ),
+                )
+                logger.warn(
+                    f"원격 slug로 이동할 수 없습니다. 로컬 폴더가 이미 존재합니다: {slug}"
+                )
+                skipped += 1
+                continue
+
+            if old_dir.exists():
+                old_dir.rename(new_dir)
+            logger.info(f"원격 slug 변경을 반영합니다: {old_slug} -> {slug}")
+            entry = entry.model_copy(
+                update={
+                    "slug": slug,
+                    "url": f"https://velog.io/@{username}/{slug}",
+                    "remote_missing_at": None,
+                    "remote_slug": None,
+                }
+            )
 
         if entry and _has_modified_local_copy(root, entry):
+            upsert_entry(
+                root,
+                entry.model_copy(
+                    update={
+                        "url": f"https://velog.io/@{username}/{slug}",
+                        "remote_missing_at": None,
+                        "remote_slug": None,
+                    }
+                ),
+            )
             logger.warn(f"수정된 로컬 글은 덮어쓰지 않고 건너뜁니다: {slug}")
             skipped += 1
             continue
@@ -164,6 +250,8 @@ def pull() -> None:
                 url=f"https://velog.io/@{username}/{slug}",
                 last_synced_hash=hash_post(post_dir),
                 last_synced_at=_remote_timestamp(post),
+                remote_missing_at=None,
+                remote_slug=None,
             ),
         )
 
@@ -172,4 +260,19 @@ def pull() -> None:
         else:
             created += 1
 
-    logger.success(f"Pull 완료: 생성 {created}개, 갱신 {updated}개, 건너뜀 {skipped}개")
+    observed_at = datetime.now(timezone.utc).isoformat()
+    for entry in load_registry(root).posts:
+        if not entry.velog_id or entry.velog_id in remote_ids:
+            continue
+        if entry.remote_missing_at is None:
+            entry = entry.model_copy(update={"remote_missing_at": observed_at})
+            upsert_entry(root, entry)
+        logger.warn(
+            f"원격 Velog에서 찾을 수 없습니다. 로컬 글은 보존합니다: {entry.slug}"
+        )
+        missing += 1
+
+    logger.success(
+        f"Pull 완료: 생성 {created}개, 갱신 {updated}개, "
+        f"건너뜀 {skipped}개, 원격 누락 {missing}개"
+    )

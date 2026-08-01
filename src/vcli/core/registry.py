@@ -27,11 +27,34 @@ def find_entry(root: Path, slug: str) -> RegistryEntry | None:
     return None
 
 
+def find_entry_by_velog_id(root: Path, velog_id: str) -> RegistryEntry | None:
+    registry = load_registry(root)
+    for entry in registry.posts:
+        if entry.velog_id == velog_id:
+            return entry
+    return None
+
+
 def upsert_entry(root: Path, entry: RegistryEntry) -> None:
     registry = load_registry(root)
     for index, existing in enumerate(registry.posts):
-        if existing.slug == entry.slug:
+        same_velog_post = (
+            entry.velog_id is not None and existing.velog_id == entry.velog_id
+        )
+        if existing.slug == entry.slug or same_velog_post:
             registry.posts[index] = entry
+            registry.posts = [
+                candidate
+                for candidate_index, candidate in enumerate(registry.posts)
+                if candidate_index == index
+                or (
+                    candidate.slug != entry.slug
+                    and (
+                        entry.velog_id is None
+                        or candidate.velog_id != entry.velog_id
+                    )
+                )
+            ]
             save_registry(root, registry)
             return
     registry.posts.append(entry)
