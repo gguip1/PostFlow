@@ -127,23 +127,22 @@ def pull() -> None:
         logger.error("Velog 로그인이 필요합니다. 먼저 `vcli login`을 실행하세요.")
         raise typer.Exit(1)
 
-    user = get_current_user()
-    if not user:
-        logger.error("Velog 사용자 정보를 읽을 수 없습니다.")
-        raise typer.Exit(1)
+    try:
+        user = get_current_user()
+        if not user:
+            logger.error("Velog 사용자 정보를 읽을 수 없습니다.")
+            raise typer.Exit(1)
+        username = user["username"]
+        remote_posts = get_user_posts(username)
+    except (PermissionError, ConnectionError, RuntimeError) as error:
+        logger.error(str(error))
+        logger.warn("원격 목록을 완전히 확인하지 못해 누락 판정을 수행하지 않습니다.")
+        raise typer.Exit(1) from error
 
-    username = user["username"]
     created = 0
     updated = 0
     skipped = 0
     missing = 0
-
-    try:
-        remote_posts = get_user_posts(username)
-    except (ConnectionError, RuntimeError) as error:
-        logger.error(str(error))
-        logger.warn("원격 목록을 완전히 확인하지 못해 누락 판정을 수행하지 않습니다.")
-        raise typer.Exit(1) from error
 
     remote_ids = {post["id"] for post in remote_posts}
 

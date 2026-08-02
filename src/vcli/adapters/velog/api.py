@@ -97,6 +97,7 @@ def upload_image_file(
         fields["ref_id"] = ref_id
 
     body, boundary = _multipart_form_data(fields, "image", path)
+    payload: dict = {}
     for attempt in range(2):
         req = Request(
             VELOG_IMAGE_UPLOAD,

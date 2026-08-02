@@ -216,6 +216,51 @@ class VelogApiTests(unittest.TestCase):
             "access_token=access-new; refresh_token=refresh-new",
         )
 
+    def test_image_upload_does_not_retry_401_without_new_tokens(self) -> None:
+        velog_auth.login_with_token("access-old", "refresh-old")
+        image_path = Path(self.temp_dir.name) / "image.png"
+        image_path.write_bytes(b"image-bytes")
+        unauthorized = urllib.error.HTTPError(
+            velog_api.VELOG_IMAGE_UPLOAD,
+            401,
+            "Unauthorized",
+            Message(),
+            None,
+        )
+        self.addCleanup(unauthorized.close)
+
+        with unittest.mock.patch.object(
+            velog_api,
+            "urlopen",
+            side_effect=unauthorized,
+        ) as mocked:
+            with self.assertRaisesRegex(PermissionError, "refresh_token"):
+                velog_api.upload_image_file(image_path)
+
+        self.assertEqual(mocked.call_count, 1)
+
+    def test_image_upload_without_auth_file_shows_login_guidance(self) -> None:
+        image_path = Path(self.temp_dir.name) / "image.png"
+        image_path.write_bytes(b"image-bytes")
+        unauthorized = urllib.error.HTTPError(
+            velog_api.VELOG_IMAGE_UPLOAD,
+            401,
+            "Unauthorized",
+            Message(),
+            None,
+        )
+        self.addCleanup(unauthorized.close)
+
+        with unittest.mock.patch.object(
+            velog_api,
+            "urlopen",
+            side_effect=unauthorized,
+        ) as mocked:
+            with self.assertRaisesRegex(PermissionError, "vcli login"):
+                velog_api.upload_image_file(image_path)
+
+        self.assertEqual(mocked.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

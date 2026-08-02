@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import urllib.error
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
@@ -25,8 +26,12 @@ def auth_exists(root: Path | None = None) -> bool:
 
 
 def _load_storage(root: Path | None = None) -> dict[str, Any]:
-    with open(get_auth_path(root), encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(get_auth_path(root), encoding="utf-8") as f:
+            storage = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return storage if isinstance(storage, dict) else {}
 
 
 def _write_storage(storage: dict[str, Any], root: Path | None = None) -> None:
@@ -56,10 +61,15 @@ def _write_storage(storage: dict[str, Any], root: Path | None = None) -> None:
 def load_auth_cookies(root: Path | None = None) -> dict[str, str]:
     """저장된 Velog 인증 쿠키를 이름과 값으로 반환한다."""
     storage = _load_storage(root)
+    stored_cookies = storage.get("cookies", [])
+    if not isinstance(stored_cookies, list):
+        return {}
     return {
         cookie["name"]: cookie["value"]
-        for cookie in storage.get("cookies", [])
-        if cookie.get("name") in {"access_token", "refresh_token"}
+        for cookie in stored_cookies
+        if isinstance(cookie, dict)
+        and cookie.get("name") in {"access_token", "refresh_token"}
+        and isinstance(cookie.get("value"), str)
     }
 
 
@@ -83,23 +93,36 @@ def update_auth_from_headers(headers: Any, root: Path | None = None) -> bool:
     else:
         raw_header = headers.get("Set-Cookie")
         raw_headers = [raw_header] if raw_header else []
-    updates: dict[str, str] = {}
+    received: dict[str, str] = {}
     for raw_header in raw_headers:
         parsed = SimpleCookie()
         parsed.load(raw_header)
         for name in ("access_token", "refresh_token"):
             if name in parsed:
-                updates[name] = parsed[name].value
+                received[name] = parsed[name].value
 
-    if not updates:
+    if not received:
         return False
 
     storage = _load_storage(root)
     changed = False
-    stored_cookies = storage.setdefault("cookies", [])
-    by_name = {cookie.get("name"): cookie for cookie in stored_cookies}
-    for name, value in updates.items():
+    rotated = False
+    stored_cookies = storage.get("cookies")
+    if not isinstance(stored_cookies, list):
+        stored_cookies = []
+        storage["cookies"] = stored_cookies
+    by_name = {
+        cookie.get("name"): cookie
+        for cookie in stored_cookies
+        if isinstance(cookie, dict)
+    }
+    for name, value in received.items():
         cookie = by_name.get(name)
+        if not value:
+            if cookie is not None:
+                stored_cookies.remove(cookie)
+                changed = True
+            continue
         if cookie is None:
             cookie = {
                 "name": name,
@@ -113,10 +136,11 @@ def update_auth_from_headers(headers: Any, root: Path | None = None) -> bool:
         if cookie.get("value") != value:
             cookie["value"] = value
             changed = True
+            rotated = True
 
     if changed:
         _write_storage(storage, root)
-    return changed
+    return rotated
 
 
 def check_auth(root: Path | None = None) -> bool:
@@ -125,7 +149,7 @@ def check_auth(root: Path | None = None) -> bool:
     if not auth_path.exists():
         return False
 
-    try:
+    for attempt in range(2):
         cookie_header = get_auth_cookie_header(root)
         if not cookie_header:
             return False
@@ -139,13 +163,21 @@ def check_auth(root: Path | None = None) -> bool:
                 "Cookie": cookie_header,
             },
         )
-        with urlopen(req, timeout=10) as resp:
-            update_auth_from_headers(resp.headers, root)
-            result = json.loads(resp.read())
-            user = result.get("data", {}).get("currentUser")
-            return user is not None
-    except Exception:
-        return False
+        try:
+            with urlopen(req, timeout=10) as resp:
+                update_auth_from_headers(resp.headers, root)
+                result = json.loads(resp.read())
+                user = result.get("data", {}).get("currentUser")
+                return user is not None
+        except urllib.error.HTTPError as error:
+            tokens_rotated = update_auth_from_headers(error.headers, root)
+            if error.code == 401 and tokens_rotated and attempt == 0:
+                continue
+            return False
+        except Exception:
+            return False
+
+    return False
 
 
 def login_with_token(access_token: str, refresh_token: str, root: Path | None = None) -> None:

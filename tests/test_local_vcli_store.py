@@ -243,6 +243,26 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertIn("synced", status_result.stdout)
         self.assertIn("remote-post", status_result.stdout)
 
+    def test_pull_handles_current_user_api_failure(self) -> None:
+        import vcli.commands.import_posts as pull_command
+
+        self.runner.invoke(app, ["init"])
+        get_posts = unittest.mock.Mock()
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(
+                 pull_command,
+                 "get_current_user",
+                 side_effect=PermissionError("세션 갱신 실패"),
+             ), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", get_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 1, result.stdout)
+        self.assertIn("세션 갱신 실패", result.stdout)
+        self.assertIn("누락 판정을 수행하지 않습니다", result.stdout)
+        get_posts.assert_not_called()
+
     def test_find_image_urls_ignores_markdown_images_inside_fenced_code_blocks(self) -> None:
         from vcli.commands.import_posts import _find_image_urls
 

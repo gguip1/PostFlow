@@ -3,6 +3,7 @@ import stat
 import tempfile
 import unittest
 import unittest.mock
+import urllib.error
 from email.message import Message
 from pathlib import Path
 
@@ -69,6 +70,57 @@ class VelogAuthTests(unittest.TestCase):
             velog_auth.load_auth_cookies(),
             {"access_token": "access-new", "refresh_token": "refresh-new"},
         )
+
+    def test_check_auth_retries_once_with_tokens_rotated_on_401(self) -> None:
+        velog_auth.login_with_token("access-old", "refresh-old")
+        headers = Message()
+        headers.add_header("Set-Cookie", "access_token=access-new; Path=/; HttpOnly")
+        headers.add_header("Set-Cookie", "refresh_token=refresh-new; Path=/; HttpOnly")
+        unauthorized = urllib.error.HTTPError(
+            "https://v3.velog.io/graphql",
+            401,
+            "Unauthorized",
+            headers,
+            None,
+        )
+        self.addCleanup(unauthorized.close)
+        requests = []
+
+        def fake_urlopen(request, timeout=10):
+            requests.append(request)
+            if len(requests) == 1:
+                raise unauthorized
+            return FakeResponse(
+                {"data": {"currentUser": {"id": "user-1", "username": "me"}}}
+            )
+
+        with unittest.mock.patch.object(velog_auth, "urlopen", fake_urlopen):
+            self.assertTrue(velog_auth.check_auth())
+
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(
+            requests[1].get_header("Cookie"),
+            "access_token=access-new; refresh_token=refresh-new",
+        )
+
+    def test_clearing_cookies_removes_tokens_without_reporting_rotation(self) -> None:
+        velog_auth.login_with_token("access-old", "refresh-old")
+        headers = Message()
+        headers.add_header("Set-Cookie", "access_token=; Path=/; Max-Age=0")
+        headers.add_header("Set-Cookie", "refresh_token=; Path=/; Max-Age=0")
+
+        self.assertFalse(velog_auth.update_auth_from_headers(headers))
+        self.assertEqual(velog_auth.load_auth_cookies(), {})
+
+    def test_missing_or_corrupt_auth_file_returns_empty_cookies(self) -> None:
+        self.assertEqual(velog_auth.load_auth_cookies(), {})
+        self.assertEqual(velog_auth.get_auth_cookie_header(), "")
+
+        self.auth_path.parent.mkdir(parents=True)
+        self.auth_path.write_text("not-json", encoding="utf-8")
+
+        self.assertEqual(velog_auth.load_auth_cookies(), {})
+        self.assertEqual(velog_auth.get_auth_cookie_header(), "")
 
 
 if __name__ == "__main__":
