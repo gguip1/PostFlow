@@ -497,6 +497,67 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertEqual(registry["posts"][0]["slug"], "new-slug")
         self.assertEqual(registry["posts"][0]["velog_id"], "velog-renamed")
 
+    def test_pull_persists_slug_rename_before_writing_post_files(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "old-slug", "--title", "Renamed Post"])
+        old_dir = self.tmp_root / ".vcli" / "posts" / "old-slug"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="old-slug",
+                velog_id="velog-renamed",
+                url="https://velog.io/@me/old-slug",
+                last_synced_hash=hash_post(old_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+        remote_posts = [
+            {
+                "id": "velog-renamed",
+                "title": "Renamed Post",
+                "url_slug": "new-slug",
+                "tags": [],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-18T12:00:00Z",
+                "short_description": "",
+                "body": "# Renamed\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts), \
+             unittest.mock.patch.object(
+                 pull_command,
+                 "write_yaml",
+                 side_effect=OSError("simulated metadata write failure"),
+             ):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertFalse(old_dir.exists())
+        self.assertTrue((self.tmp_root / ".vcli" / "posts" / "new-slug").exists())
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertEqual(registry["posts"][0]["slug"], "new-slug")
+        self.assertEqual(registry["posts"][0]["velog_id"], "velog-renamed")
+        self.assertNotIn("remote_slug", registry["posts"][0])
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            retry_result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(retry_result.exit_code, 0, retry_result.stdout)
+        new_dir = self.tmp_root / ".vcli" / "posts" / "new-slug"
+        self.assertEqual(read_yaml(new_dir / "meta.yaml")["slug"], "new-slug")
+        self.assertEqual((new_dir / "content.md").read_text(encoding="utf-8"), "# Renamed\n")
+
     def test_pull_does_not_move_modified_post_on_remote_slug_change(self) -> None:
         import vcli.commands.import_posts as pull_command
         from vcli.core.hashing import hash_post

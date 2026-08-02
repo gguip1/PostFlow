@@ -210,6 +210,7 @@ def pull() -> None:
                     "remote_slug": None,
                 }
             )
+            upsert_entry(root, entry)
 
         if entry and _has_modified_local_copy(root, entry):
             upsert_entry(
