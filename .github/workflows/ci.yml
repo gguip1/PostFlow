@@ -60,3 +60,10 @@ jobs:
           expected_version="$(uv run --frozen python -c 'from importlib.metadata import version; print(version("unofficial-velog-cli"))')"
           test "$installed_version" = "$expected_version"
           vcli --help >/dev/null
+          smoke_dir="$(mktemp -d)"
+          cd "$smoke_dir"
+          vcli init
+          vcli skill install
+          test -f .agents/skills/vcli-manage-posts/SKILL.md
+          test -f .claude/skills/vcli-manage-posts/SKILL.md
+          vcli skill status

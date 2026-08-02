@@ -31,11 +31,25 @@ uv tool install .
 uv tool update-shell
 ```
 
+그래도 현재 셸에서 명령을 찾지 못하면 다음처럼 uv tool 실행 경로를 직접
+추가합니다.
+
+```bash
+export PATH="$(uv tool dir --bin):$PATH"
+```
+
 새 변경을 받은 뒤 설치된 도구를 갱신하려면 다음 명령을 실행합니다.
 
 ```bash
 git pull --ff-only
 uv tool install --reinstall .
+```
+
+에이전트 skill을 설치한 작업공간에서는 새 번들 버전으로 함께 갱신합니다.
+
+```bash
+cd /path/to/blog-workspace
+vcli skill update
 ```
 
 설치 후 어느 폴더에서든 `vcli`를 실행할 수 있습니다.
@@ -75,12 +89,46 @@ uv tool install --editable .
 
 ```bash
 vcli init
+vcli skill install
 vcli login
 vcli pull
 vcli create my-velog-post --title "Velog 글 작성하기" --tags velog,cli
 vcli status
 vcli push my-velog-post
 ```
+
+## 에이전트 skill
+
+초기화된 블로그 작업공간에서 Codex와 Claude Code용 `vcli-manage-posts`
+skill을 설치할 수 있습니다.
+
+```bash
+vcli skill install
+vcli skill status
+```
+
+설치 위치는 다음과 같습니다.
+
+```text
+.agents/skills/vcli-manage-posts/SKILL.md
+.claude/skills/vcli-manage-posts/SKILL.md
+```
+
+`vcli`는 작업공간의 루트 `AGENTS.md`와 `CLAUDE.md`를 만들거나 수정하지
+않습니다. 블로그 문체, 독자, 주제 같은 사용자 지침은 해당 파일에서 별도로
+관리할 수 있습니다.
+
+설치된 skill을 수정하지 않았다면 다음 명령으로 안전하게 갱신하거나 제거할 수
+있습니다.
+
+```bash
+vcli skill update
+vcli skill uninstall
+```
+
+기존 파일이나 사용자가 수정한 파일은 자동으로 덮어쓰거나 삭제하지 않습니다.
+의도적으로 교체해야 할 때만 `--force`를 사용합니다. Codex 또는 Claude 하나만
+관리하려면 `--target codex` 또는 `--target claude`를 지정합니다.
 
 ## 기본 명령
 
@@ -97,6 +145,10 @@ vcli push my-velog-post
 | `vcli push` | draft/modified 글을 선택해서 Velog에 반영 |
 | `vcli push <slug>` | 특정 글 하나를 Velog에 발행 또는 수정 |
 | `vcli image upload <path>` | 로컬 이미지를 Velog CDN에 업로드하고 URL 출력 |
+| `vcli skill install` | 현재 작업공간에 Codex/Claude용 skill 설치 |
+| `vcli skill status` | 설치된 skill의 `missing`/`current`/`outdated`/`conflict` 상태 확인 |
+| `vcli skill update` | vcli가 관리하는 수정되지 않은 skill 갱신 |
+| `vcli skill uninstall` | vcli가 관리하는 수정되지 않은 skill 제거 |
 
 ## 상태 모델
 
@@ -118,12 +170,17 @@ project/
     config.yaml
     registry.yaml
     uploads.yaml
+    skills.yaml
     posts/
       <slug>/
         content.md
         meta.yaml
         images/
           mapping.json
+  .agents/
+    skills/vcli-manage-posts/SKILL.md
+  .claude/
+    skills/vcli-manage-posts/SKILL.md
 ```
 
 Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저장합니다.
@@ -137,6 +194,10 @@ Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저�
 uv tool 환경에는 `vcli` 실행 파일과 Python 의존성만 설치됩니다. Velog 글,
 registry, 이미지 업로드 기록과 인증 정보는 모두 사용자가 초기화한 작업공간의
 `.vcli` 아래에 저장됩니다.
+
+`skills.yaml`에는 vcli가 설치한 agent skill의 대상 경로와 설치 당시 hash만
+기록합니다. 이를 이용해 사용자가 수정한 skill을 갱신이나 제거 과정에서
+보호합니다.
 
 ## 이미지 업로드
 

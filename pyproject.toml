@@ -43,3 +43,6 @@ vcli = "vcli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+vcli = ["resources/skills/*/SKILL.md"]
