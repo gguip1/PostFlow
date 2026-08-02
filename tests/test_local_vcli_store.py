@@ -375,6 +375,268 @@ class LocalVcliStoreTests(unittest.TestCase):
         self.assertTrue((post_dir / "meta.yaml").exists())
         self.assertIn("깨진 로컬 글을 원격 기준으로 다시 가져옵니다", result.stdout)
 
+    def test_pull_marks_remote_missing_without_deleting_local_post(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "kept-local", "--title", "Kept Local"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "kept-local"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="kept-local",
+                velog_id="velog-deleted",
+                url="https://velog.io/@me/kept-local",
+                last_synced_hash=hash_post(post_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: []):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertTrue(post_dir.exists())
+        self.assertTrue((post_dir / "content.md").exists())
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertIsNotNone(registry["posts"][0]["remote_missing_at"])
+        self.assertIn("원격 Velog에서 찾을 수 없습니다", result.stdout)
+
+    def test_pull_clears_remote_missing_when_post_reappears(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "returned-post", "--title", "Returned Post"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "returned-post"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="returned-post",
+                velog_id="velog-returned",
+                url="https://velog.io/@me/returned-post",
+                last_synced_hash=hash_post(post_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+                remote_missing_at="2026-05-17T12:00:00Z",
+            ),
+        )
+        remote_posts = [
+            {
+                "id": "velog-returned",
+                "title": "Returned Post",
+                "url_slug": "returned-post",
+                "tags": [],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-18T12:00:00Z",
+                "short_description": "",
+                "body": "# Returned\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertNotIn("remote_missing_at", registry["posts"][0])
+
+    def test_pull_tracks_synced_slug_change_by_velog_id_without_duplicates(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "old-slug", "--title", "Renamed Post"])
+        old_dir = self.tmp_root / ".vcli" / "posts" / "old-slug"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="old-slug",
+                velog_id="velog-renamed",
+                url="https://velog.io/@me/old-slug",
+                last_synced_hash=hash_post(old_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+        remote_posts = [
+            {
+                "id": "velog-renamed",
+                "title": "Renamed Post",
+                "url_slug": "new-slug",
+                "tags": [],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-18T12:00:00Z",
+                "short_description": "",
+                "body": "# Renamed\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertFalse(old_dir.exists())
+        new_dir = self.tmp_root / ".vcli" / "posts" / "new-slug"
+        self.assertTrue(new_dir.exists())
+        self.assertEqual(read_yaml(new_dir / "meta.yaml")["slug"], "new-slug")
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertEqual(len(registry["posts"]), 1)
+        self.assertEqual(registry["posts"][0]["slug"], "new-slug")
+        self.assertEqual(registry["posts"][0]["velog_id"], "velog-renamed")
+
+    def test_pull_persists_slug_rename_before_writing_post_files(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "old-slug", "--title", "Renamed Post"])
+        old_dir = self.tmp_root / ".vcli" / "posts" / "old-slug"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="old-slug",
+                velog_id="velog-renamed",
+                url="https://velog.io/@me/old-slug",
+                last_synced_hash=hash_post(old_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+        remote_posts = [
+            {
+                "id": "velog-renamed",
+                "title": "Renamed Post",
+                "url_slug": "new-slug",
+                "tags": [],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-18T12:00:00Z",
+                "short_description": "",
+                "body": "# Renamed\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts), \
+             unittest.mock.patch.object(
+                 pull_command,
+                 "write_yaml",
+                 side_effect=OSError("simulated metadata write failure"),
+             ):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertFalse(old_dir.exists())
+        self.assertTrue((self.tmp_root / ".vcli" / "posts" / "new-slug").exists())
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertEqual(registry["posts"][0]["slug"], "new-slug")
+        self.assertEqual(registry["posts"][0]["velog_id"], "velog-renamed")
+        self.assertNotIn("remote_slug", registry["posts"][0])
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            retry_result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(retry_result.exit_code, 0, retry_result.stdout)
+        new_dir = self.tmp_root / ".vcli" / "posts" / "new-slug"
+        self.assertEqual(read_yaml(new_dir / "meta.yaml")["slug"], "new-slug")
+        self.assertEqual((new_dir / "content.md").read_text(encoding="utf-8"), "# Renamed\n")
+
+    def test_pull_does_not_move_modified_post_on_remote_slug_change(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "local-slug", "--title", "Local Edit"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "local-slug"
+        baseline_hash = hash_post(post_dir)
+        (post_dir / "content.md").write_text("# Local Edit\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="local-slug",
+                velog_id="velog-conflict",
+                url="https://velog.io/@me/local-slug",
+                last_synced_hash=baseline_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+        remote_posts = [
+            {
+                "id": "velog-conflict",
+                "title": "Remote Rename",
+                "url_slug": "remote-slug",
+                "tags": [],
+                "is_private": False,
+                "released_at": "2026-05-16T12:00:00Z",
+                "updated_at": "2026-05-18T12:00:00Z",
+                "short_description": "",
+                "body": "# Remote\n",
+                "series": None,
+            }
+        ]
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", lambda username: remote_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertTrue(post_dir.exists())
+        self.assertFalse((self.tmp_root / ".vcli" / "posts" / "remote-slug").exists())
+        self.assertEqual((post_dir / "content.md").read_text(encoding="utf-8"), "# Local Edit\n")
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertEqual(registry["posts"][0]["remote_slug"], "remote-slug")
+        self.assertIn("slug 변경과 로컬 수정이 충돌합니다", result.stdout)
+
+    def test_pull_failure_does_not_mark_posts_as_remote_missing(self) -> None:
+        import vcli.commands.import_posts as pull_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "safe-post", "--title", "Safe Post"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "safe-post"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="safe-post",
+                velog_id="velog-safe",
+                url="https://velog.io/@me/safe-post",
+                last_synced_hash=hash_post(post_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+            ),
+        )
+
+        def fail_posts(username):
+            raise ConnectionError("incomplete remote response")
+
+        with unittest.mock.patch.object(pull_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(pull_command, "get_current_user", lambda: {"username": "me"}), \
+             unittest.mock.patch.object(pull_command, "get_user_posts", fail_posts):
+            result = self.runner.invoke(app, ["pull"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        registry = read_yaml(self.tmp_root / ".vcli" / "registry.yaml")
+        self.assertNotIn("remote_missing_at", registry["posts"][0])
+
     def test_push_single_draft_creates_remote_and_marks_synced(self) -> None:
         import vcli.commands.push as push_command
         from vcli.adapters.velog.adapter import PublishResult
@@ -459,6 +721,106 @@ class LocalVcliStoreTests(unittest.TestCase):
         status_result = self.runner.invoke(app, ["status"])
         self.assertIn("synced", status_result.stdout)
         self.assertIn("update-me", status_result.stdout)
+
+    def test_push_blocks_post_marked_remote_missing_before_adapter_call(self) -> None:
+        import vcli.commands.push as push_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "deleted-remote", "--title", "Deleted Remote"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "deleted-remote"
+        baseline_hash = hash_post(post_dir)
+        (post_dir / "content.md").write_text("# Local Change\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="deleted-remote",
+                velog_id="velog-deleted",
+                url="https://velog.io/@me/deleted-remote",
+                last_synced_hash=baseline_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+                remote_missing_at="2026-05-17T12:00:00Z",
+            ),
+        )
+        calls: list[str] = []
+
+        class DummyAdapter:
+            def create(self, post):
+                calls.append("create")
+
+            def update(self, post_id, post):
+                calls.append("update")
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
+            result = self.runner.invoke(app, ["push", "deleted-remote"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(calls, [])
+        self.assertIn("마지막 pull에서 원격 Velog 글을 찾지 못했습니다", result.stdout)
+
+    def test_push_blocks_remote_slug_conflict_before_adapter_call(self) -> None:
+        import vcli.commands.push as push_command
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "local-slug", "--title", "Slug Conflict"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "local-slug"
+        baseline_hash = hash_post(post_dir)
+        (post_dir / "content.md").write_text("# Local Change\n", encoding="utf-8")
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="local-slug",
+                velog_id="velog-conflict",
+                url="https://velog.io/@me/remote-slug",
+                last_synced_hash=baseline_hash,
+                last_synced_at="2026-05-16T12:00:00Z",
+                remote_slug="remote-slug",
+            ),
+        )
+        calls: list[str] = []
+
+        class DummyAdapter:
+            def create(self, post):
+                calls.append("create")
+
+            def update(self, post_id, post):
+                calls.append("update")
+
+        with unittest.mock.patch.object(push_command, "check_auth", lambda: True), \
+             unittest.mock.patch.object(push_command, "VelogAdapter", DummyAdapter):
+            result = self.runner.invoke(app, ["push", "local-slug"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(calls, [])
+        self.assertIn("원격 slug 변경과 로컬 글이 충돌합니다", result.stdout)
+
+    def test_check_slug_rejects_unsafe_remote_linkage(self) -> None:
+        from vcli.core.hashing import hash_post
+        from vcli.core.registry import RegistryEntry, upsert_entry
+
+        self.runner.invoke(app, ["init"])
+        self.runner.invoke(app, ["create", "unsafe-post", "--title", "Unsafe Post"])
+        post_dir = self.tmp_root / ".vcli" / "posts" / "unsafe-post"
+        upsert_entry(
+            self.tmp_root,
+            RegistryEntry(
+                slug="unsafe-post",
+                velog_id="velog-unsafe",
+                url="https://velog.io/@me/unsafe-post",
+                last_synced_hash=hash_post(post_dir),
+                last_synced_at="2026-05-16T12:00:00Z",
+                remote_missing_at="2026-05-17T12:00:00Z",
+            ),
+        )
+
+        result = self.runner.invoke(app, ["check", "unsafe-post"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("마지막 pull에서 원격 Velog 글을 찾지 못했습니다", result.stdout)
 
     def test_push_interactive_prompt_explains_space_selection(self) -> None:
         import vcli.commands.push as push_command

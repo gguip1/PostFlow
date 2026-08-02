@@ -32,6 +32,19 @@ def validate_post(root: Path, slug: str) -> CheckResult:
     result = CheckResult()
     post_dir = get_post_dir(root, slug)
 
+    entry = next(
+        (candidate for candidate in load_registry(root).posts if candidate.slug == slug),
+        None,
+    )
+    if entry and entry.remote_missing_at:
+        result.add_error(
+            f"[{entry.slug}] 마지막 pull에서 원격 Velog 글을 찾지 못했습니다."
+        )
+    if entry and entry.remote_slug and entry.remote_slug != entry.slug:
+        result.add_error(
+            f"[{entry.slug}] 원격 slug 변경과 충돌합니다: {entry.remote_slug}"
+        )
+
     if not post_dir.exists():
         result.add_error(f"[{slug}] 글 폴더가 없습니다.")
         return result
@@ -69,11 +82,19 @@ def validate_registry(root: Path) -> CheckResult:
     posts_dir = get_posts_dir(root)
 
     seen_slugs: set[str] = set()
+    seen_velog_ids: set[str] = set()
 
     for entry in registry.posts:
         if entry.slug in seen_slugs:
             result.add_error(f"registry에 중복 slug가 있습니다: {entry.slug}")
         seen_slugs.add(entry.slug)
+
+        if entry.velog_id:
+            if entry.velog_id in seen_velog_ids:
+                result.add_error(
+                    f"registry에 중복 velog_id가 있습니다: {entry.velog_id}"
+                )
+            seen_velog_ids.add(entry.velog_id)
 
         post_dir = posts_dir / entry.slug
         if not post_dir.exists():

@@ -64,6 +64,23 @@ def _validate_no_unuploaded_local_images(content: str, post_dir: Path) -> bool:
     return False
 
 
+def _validate_remote_linkage(entry: RegistryEntry) -> bool:
+    if entry.remote_missing_at:
+        logger.error(
+            f"마지막 pull에서 원격 Velog 글을 찾지 못했습니다: {entry.slug}"
+        )
+        logger.info("원격에서 삭제되었거나 접근할 수 없는 글일 수 있어 push를 중단합니다.")
+        return False
+    if entry.remote_slug and entry.remote_slug != entry.slug:
+        logger.error(
+            f"원격 slug 변경과 로컬 글이 충돌합니다: "
+            f"{entry.slug} -> {entry.remote_slug}"
+        )
+        logger.info("충돌을 해결하려면 로컬 변경을 보존한 뒤 `vcli pull`을 다시 실행하세요.")
+        return False
+    return True
+
+
 def _confirm_push(root: Path, entry: RegistryEntry, meta, status: str) -> bool:
     post_dir = get_post_dir(root, entry.slug)
 
@@ -92,6 +109,8 @@ def _confirm_push(root: Path, entry: RegistryEntry, meta, status: str) -> bool:
 
 
 def _push_entry(root: Path, entry: RegistryEntry, adapter: VelogAdapter) -> bool:
+    if not _validate_remote_linkage(entry):
+        return False
     meta, content = read_post(root, entry.slug)
     post_dir = get_post_dir(root, entry.slug)
     status = calculate_status(root, entry)
@@ -133,6 +152,8 @@ def _push_entry(root: Path, entry: RegistryEntry, adapter: VelogAdapter) -> bool
 
 
 def _pushable_status(root: Path, entry: RegistryEntry) -> str | None:
+    if not _validate_remote_linkage(entry):
+        return None
     try:
         status = calculate_status(root, entry)
     except FileNotFoundError as error:

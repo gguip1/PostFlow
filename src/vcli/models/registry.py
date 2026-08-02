@@ -7,6 +7,8 @@ class RegistryEntry(BaseModel):
     url: str | None = None
     last_synced_hash: str | None = None
     last_synced_at: str | None = None
+    remote_missing_at: str | None = None
+    remote_slug: str | None = None
 
 
 class Registry(BaseModel):
