@@ -10,6 +10,8 @@
 ### Added
 
 - 저장된 refresh token을 이용한 Velog 인증 자동 갱신
+- Codex와 Claude Code 작업공간에 공용 `vcli-manage-posts` skill을 안전하게
+  설치, 확인, 갱신, 제거하는 `vcli skill` 명령
 
 ### Changed
 

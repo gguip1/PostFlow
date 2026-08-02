@@ -12,6 +12,7 @@ from vcli.commands.list import list_posts
 from vcli.commands.login import login_cmd
 from vcli.commands.logout import logout
 from vcli.commands.push import push
+from vcli.commands.skill import skill_app
 from vcli.commands.status import status
 
 
@@ -60,6 +61,7 @@ app.command(name="pull")(pull)
 app.command(name="init")(init)
 app.command(name="status")(status)
 app.add_typer(image_app, name="image")
+app.add_typer(skill_app, name="skill")
 
 if __name__ == "__main__":
     app()
