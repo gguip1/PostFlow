@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   unit-tests:
     name: Python ${{ matrix.python-version }}
@@ -21,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -41,3 +46,17 @@ jobs:
       - name: Smoke test wheel
         if: matrix.python-version == '3.12'
         run: uv run --isolated --no-project --with dist/*.whl vcli --version
+
+      - name: Install tool from checkout
+        if: matrix.python-version == '3.12'
+        run: |
+          uv tool install .
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - name: Smoke test tool installation
+        if: matrix.python-version == '3.12'
+        run: |
+          installed_version="$(vcli --version)"
+          expected_version="$(uv run --frozen python -c 'from importlib.metadata import version; print(version("unofficial-velog-cli"))')"
+          test "$installed_version" = "$expected_version"
+          vcli --help >/dev/null

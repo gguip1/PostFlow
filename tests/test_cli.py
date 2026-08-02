@@ -58,9 +58,14 @@ class VcliCliSmokeTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), version("unofficial-velog-cli"))
 
     def test_commands_find_workspace_from_nested_directory(self) -> None:
-        self.runner.invoke(app, ["init"])
+        init_result = self.runner.invoke(app, ["init"])
+        self.assertEqual(init_result.exit_code, 0, init_result.stdout)
         nested = self.tmp_root / ".vcli" / "posts"
 
+        os.chdir(nested)
+        status_result = self.runner.invoke(app, ["status"])
+
+        self.assertEqual(status_result.exit_code, 0, status_result.stdout)
         self.assertEqual(find_workspace_root(nested), self.tmp_root)
 
     def test_auth_path_is_inside_local_vcli_store(self) -> None:

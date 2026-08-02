@@ -9,7 +9,12 @@ Velog 글을 로컬 `.vcli` 저장소로 가져오고, 수정하고, 발행할 �
 
 ## 설치
 
-Python 3.12 이상이 필요합니다.
+Python 3.12 이상을 대상으로 하며 [uv](https://docs.astral.sh/uv/getting-started/installation/)가
+필요합니다. macOS에서 Homebrew를 사용한다면 다음 명령으로 uv를 설치합니다.
+
+```bash
+brew install uv
+```
 
 저장소를 clone한 뒤 uv의 격리된 tool 환경에 설치합니다.
 
