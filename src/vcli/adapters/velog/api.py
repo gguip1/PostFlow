@@ -5,49 +5,50 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from vcli.adapters.velog.auth import get_auth_path
+from vcli.adapters.velog.auth import get_auth_cookie_header, update_auth_from_headers
 
 VELOG_GRAPHQL = "https://v3.velog.io/graphql"
 VELOG_IMAGE_UPLOAD = "https://v3.velog.io/api/files/v3/upload"
-
-
-def _get_access_token() -> str:
-    with open(get_auth_path(), encoding="utf-8") as f:
-        storage = json.load(f)
-    cookies = {c["name"]: c["value"] for c in storage.get("cookies", [])}
-    return cookies.get("access_token", "")
+AUTH_REFRESH_ERROR = (
+    "인증 세션을 갱신할 수 없습니다. refresh_token이 없거나 만료되었습니다. "
+    "'vcli login'으로 다시 로그인하세요."
+)
 
 
 def _graphql(query: str, variables: dict | None = None) -> dict:
-    access_token = _get_access_token()
     payload = {"query": query}
     if variables:
         payload["variables"] = variables
 
-    req = Request(
-        VELOG_GRAPHQL,
-        data=json.dumps(payload).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Cookie": f"access_token={access_token}",
-        },
-    )
-    try:
-        with urlopen(req, timeout=30) as resp:
-            body = resp.read()
-            if not body:
-                return {}
-            return json.loads(body)
-    except urllib.error.URLError as e:
-        raise ConnectionError(
-            f"Velog API에 연결할 수 없습니다. 네트워크 상태를 확인하세요.\n원인: {e}"
+    for attempt in range(2):
+        req = Request(
+            VELOG_GRAPHQL,
+            data=json.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Cookie": get_auth_cookie_header(),
+            },
         )
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise PermissionError(
-                "인증이 만료되었습니다. 'vcli login'으로 다시 로그인하세요."
-            )
-        raise ConnectionError(f"Velog API 오류 (HTTP {e.code}): {e.reason}")
+        try:
+            with urlopen(req, timeout=30) as resp:
+                update_auth_from_headers(resp.headers)
+                body = resp.read()
+                if not body:
+                    return {}
+                return json.loads(body)
+        except urllib.error.HTTPError as e:
+            tokens_changed = update_auth_from_headers(e.headers)
+            if e.code == 401 and tokens_changed and attempt == 0:
+                continue
+            if e.code == 401:
+                raise PermissionError(AUTH_REFRESH_ERROR) from e
+            raise ConnectionError(f"Velog API 오류 (HTTP {e.code}): {e.reason}") from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(
+                f"Velog API에 연결할 수 없습니다. 네트워크 상태를 확인하세요.\n원인: {e}"
+            ) from e
+
+    raise PermissionError(AUTH_REFRESH_ERROR)
 
 
 def _multipart_form_data(
@@ -91,33 +92,39 @@ def upload_image_file(
     image_type: str = "post",
     ref_id: str | None = None,
 ) -> str:
-    access_token = _get_access_token()
     fields = {"type": image_type}
     if ref_id:
         fields["ref_id"] = ref_id
 
     body, boundary = _multipart_form_data(fields, "image", path)
-    req = Request(
-        VELOG_IMAGE_UPLOAD,
-        data=body,
-        headers={
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "Content-Length": str(len(body)),
-            "Cookie": f"access_token={access_token}",
-        },
-    )
+    payload: dict = {}
+    for attempt in range(2):
+        req = Request(
+            VELOG_IMAGE_UPLOAD,
+            data=body,
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Content-Length": str(len(body)),
+                "Cookie": get_auth_cookie_header(),
+            },
+        )
 
-    try:
-        with urlopen(req, timeout=60) as resp:
-            payload = json.loads(resp.read() or b"{}")
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise PermissionError(
-                "인증이 만료되었습니다. 'vcli login'으로 다시 로그인하세요."
-            )
-        raise ConnectionError(f"Velog 이미지 업로드 실패 (HTTP {e.code}): {e.reason}")
-    except urllib.error.URLError as e:
-        raise ConnectionError(f"Velog 이미지 업로드 실패: {e}")
+        try:
+            with urlopen(req, timeout=60) as resp:
+                update_auth_from_headers(resp.headers)
+                payload = json.loads(resp.read() or b"{}")
+                break
+        except urllib.error.HTTPError as e:
+            tokens_changed = update_auth_from_headers(e.headers)
+            if e.code == 401 and tokens_changed and attempt == 0:
+                continue
+            if e.code == 401:
+                raise PermissionError(AUTH_REFRESH_ERROR) from e
+            raise ConnectionError(
+                f"Velog 이미지 업로드 실패 (HTTP {e.code}): {e.reason}"
+            ) from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Velog 이미지 업로드 실패: {e}") from e
 
     url = payload.get("path")
     if not url:
