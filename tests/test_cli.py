@@ -1,11 +1,13 @@
 import os
 import shutil
 import unittest
+from importlib.metadata import version
 from pathlib import Path
 from uuid import uuid4
 
 from typer.testing import CliRunner
 
+from vcli.core.workspace import find_workspace_root
 from vcli.main import app
 from vcli.utils.fs import read_yaml
 
@@ -48,6 +50,23 @@ class VcliCliSmokeTests(unittest.TestCase):
             result = self.runner.invoke(app, [command, "--help"])
 
             self.assertNotEqual(result.exit_code, 0, command)
+
+    def test_version_option_prints_installed_package_version(self) -> None:
+        result = self.runner.invoke(app, ["--version"])
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertEqual(result.stdout.strip(), version("unofficial-velog-cli"))
+
+    def test_commands_find_workspace_from_nested_directory(self) -> None:
+        init_result = self.runner.invoke(app, ["init"])
+        self.assertEqual(init_result.exit_code, 0, init_result.stdout)
+        nested = self.tmp_root / ".vcli" / "posts"
+
+        os.chdir(nested)
+        status_result = self.runner.invoke(app, ["status"])
+
+        self.assertEqual(status_result.exit_code, 0, status_result.stdout)
+        self.assertEqual(find_workspace_root(nested), self.tmp_root)
 
     def test_auth_path_is_inside_local_vcli_store(self) -> None:
         from vcli.adapters.velog.auth import get_auth_path, login_with_token
