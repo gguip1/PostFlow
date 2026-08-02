@@ -45,7 +45,15 @@ jobs:
 
       - name: Smoke test wheel
         if: matrix.python-version == '3.12'
-        run: uv run --isolated --no-project --with dist/*.whl vcli --version
+        run: |
+          smoke_dir="$(mktemp -d)"
+          cd "$smoke_dir"
+          uv run --isolated --no-project --with "${GITHUB_WORKSPACE}"/dist/*.whl vcli --version
+          uv run --isolated --no-project --with "${GITHUB_WORKSPACE}"/dist/*.whl vcli init
+          uv run --isolated --no-project --with "${GITHUB_WORKSPACE}"/dist/*.whl vcli skill install
+          test -f .agents/skills/vcli-manage-posts/SKILL.md
+          test -f .claude/skills/vcli-manage-posts/SKILL.md
+          uv run --isolated --no-project --with "${GITHUB_WORKSPACE}"/dist/*.whl vcli skill status
 
       - name: Install tool from checkout
         if: matrix.python-version == '3.12'
@@ -60,10 +68,3 @@ jobs:
           expected_version="$(uv run --frozen python -c 'from importlib.metadata import version; print(version("unofficial-velog-cli"))')"
           test "$installed_version" = "$expected_version"
           vcli --help >/dev/null
-          smoke_dir="$(mktemp -d)"
-          cd "$smoke_dir"
-          vcli init
-          vcli skill install
-          test -f .agents/skills/vcli-manage-posts/SKILL.md
-          test -f .claude/skills/vcli-manage-posts/SKILL.md
-          vcli skill status

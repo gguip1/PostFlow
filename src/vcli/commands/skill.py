@@ -42,7 +42,7 @@ def _root_or_exit():
 def _run_or_exit(operation):
     try:
         return operation()
-    except SkillConflictError as exc:
+    except (SkillConflictError, OSError) as exc:
         logger.error(str(exc))
         raise typer.Exit(1) from exc
 

@@ -105,7 +105,7 @@ def install_skill(
 
     for target in targets:
         path = root / TARGET_PATHS[target]
-        if not path.exists() or _hash_file(path) != bundle_hash:
+        if not path.exists() or path.is_symlink() or _hash_file(path) != bundle_hash:
             _atomic_write(path, bundle)
         _record_install(manifest, root, target, bundle_hash)
 
@@ -142,7 +142,7 @@ def update_skill(
         if recorded is None:
             continue
         path = root / TARGET_PATHS[target]
-        if not path.exists() or _hash_file(path) != bundle_hash:
+        if not path.exists() or path.is_symlink() or _hash_file(path) != bundle_hash:
             _atomic_write(path, bundle)
         _record_install(manifest, root, target, bundle_hash)
 

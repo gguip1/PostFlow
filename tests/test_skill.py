@@ -3,6 +3,7 @@ import os
 import shutil
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from typer.testing import CliRunner
@@ -94,6 +95,44 @@ class SkillCommandTests(unittest.TestCase):
         self.assertEqual(forced.exit_code, 0, forced.stdout)
         self.assertEqual(path.read_bytes(), bundled_skill_bytes())
 
+    def test_force_install_replaces_matching_symlink_with_regular_file(self) -> None:
+        self.init_workspace()
+        path = self.skill_path("codex")
+        path.parent.mkdir(parents=True)
+        source = self.tmp_root / "matching-skill.md"
+        source.write_bytes(bundled_skill_bytes())
+        path.symlink_to(source)
+
+        result = self.runner.invoke(
+            app,
+            ["skill", "install", "--target", "codex", "--force"],
+        )
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertFalse(path.is_symlink())
+        self.assertEqual(path.read_bytes(), bundled_skill_bytes())
+
+    def test_force_update_replaces_matching_symlink_with_regular_file(self) -> None:
+        self.init_workspace()
+        installed = self.runner.invoke(
+            app, ["skill", "install", "--target", "codex"]
+        )
+        self.assertEqual(installed.exit_code, 0, installed.stdout)
+        path = self.skill_path("codex")
+        source = self.tmp_root / "matching-skill.md"
+        source.write_bytes(bundled_skill_bytes())
+        path.unlink()
+        path.symlink_to(source)
+
+        result = self.runner.invoke(
+            app,
+            ["skill", "update", "--target", "codex", "--force"],
+        )
+
+        self.assertEqual(result.exit_code, 0, result.stdout)
+        self.assertFalse(path.is_symlink())
+        self.assertEqual(path.read_bytes(), bundled_skill_bytes())
+
     def test_update_replaces_unchanged_outdated_installation(self) -> None:
         self.init_workspace()
         installed = self.runner.invoke(
@@ -174,6 +213,18 @@ class SkillCommandTests(unittest.TestCase):
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("vcli 저장소를 찾을 수 없습니다", result.stdout)
+
+    def test_filesystem_errors_are_reported_without_traceback(self) -> None:
+        self.init_workspace()
+        with patch(
+            "vcli.commands.skill.install_skill",
+            side_effect=PermissionError("read-only skill directory"),
+        ):
+            result = self.runner.invoke(app, ["skill", "install"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("read-only skill directory", result.stdout)
+        self.assertNotIn("Traceback", result.stdout)
 
 
 if __name__ == "__main__":
