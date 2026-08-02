@@ -4,31 +4,67 @@ Velog 글을 로컬 `.vcli` 저장소로 가져오고, 수정하고, 발행할 �
 
 `vcli`는 블로그 CMS가 아니라 Velog pull/push 어댑터입니다. 글 기획, 시리즈 관리, 외부 초안 정리는 사용자가 원하는 폴더에서 자유롭게 관리하고, 실제 Velog와 동기화되는 글만 `.vcli/posts`에서 관리합니다.
 
+이 프로젝트는 Velog 공식 프로젝트가 아니며 Velog 또는 운영사와 제휴하거나
+승인받은 도구가 아닙니다.
+
 ## 설치
 
 Python 3.12 이상이 필요합니다.
 
-단순히 사용하려면 저장소를 clone한 뒤 editable 모드로 설치합니다.
+저장소를 clone한 뒤 uv의 격리된 tool 환경에 설치합니다.
 
 ```bash
 git clone https://github.com/gguip1/unofficial-velog-cli.git
 cd unofficial-velog-cli
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+uv tool install .
 ```
 
-기여하려면 먼저 GitHub에서 fork한 뒤 clone URL을 본인 fork 주소로 바꾸면 됩니다.
+`vcli` 명령을 찾지 못하면 uv의 실행 파일 경로를 셸에 추가한 뒤 터미널을
+다시 시작합니다.
 
-Windows PowerShell에서는 다음처럼 설치합니다.
+```bash
+uv tool update-shell
+```
 
-```powershell
+새 변경을 받은 뒤 설치된 도구를 갱신하려면 다음 명령을 실행합니다.
+
+```bash
+git pull --ff-only
+uv tool install --reinstall .
+```
+
+설치 후 어느 폴더에서든 `vcli`를 실행할 수 있습니다.
+
+```bash
+vcli --version
+vcli --help
+```
+
+제거하려면 다음 명령을 실행합니다.
+
+```bash
+uv tool uninstall unofficial-velog-cli
+```
+
+## 개발
+
+기여하려면 저장소를 fork한 뒤 uv로 개발 환경을 동기화합니다.
+
+```bash
 git clone https://github.com/gguip1/unofficial-velog-cli.git
 cd unofficial-velog-cli
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e .
+uv sync --locked --dev
+uv run python -m unittest discover -s tests
 ```
+
+도구를 editable 모드로 설치하면 저장소의 소스 변경이 설치된 `vcli`에 바로
+반영됩니다.
+
+```bash
+uv tool install --editable .
+```
+
+의존성을 변경했다면 `uv lock`을 실행하고 `uv.lock`을 함께 커밋합니다.
 
 ## 빠른 시작
 
@@ -86,6 +122,16 @@ project/
 ```
 
 Velog 인증 세션은 현재 vcli 저장소의 `.vcli/velog-auth.json`에 저장합니다.
+
+`vcli init`은 명령을 실행한 현재 폴더에 `.vcli`를 만듭니다. 다른 경로를
+초기화하려면 `vcli init --path <folder>`를 사용합니다. 이후 명령은 현재
+폴더부터 상위 폴더 방향으로 가장 가까운 `.vcli/registry.yaml`을 찾아 해당
+작업공간을 사용하므로, `.vcli/posts/<slug>` 같은 하위 폴더에서도 실행할 수
+있습니다.
+
+uv tool 환경에는 `vcli` 실행 파일과 Python 의존성만 설치됩니다. Velog 글,
+registry, 이미지 업로드 기록과 인증 정보는 모두 사용자가 초기화한 작업공간의
+`.vcli` 아래에 저장됩니다.
 
 ## 이미지 업로드
 

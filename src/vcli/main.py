@@ -1,3 +1,5 @@
+from importlib.metadata import PackageNotFoundError, version
+
 import typer
 
 from vcli.commands.check import check
@@ -12,12 +14,40 @@ from vcli.commands.logout import logout
 from vcli.commands.push import push
 from vcli.commands.status import status
 
+
+def _package_version() -> str:
+    try:
+        return version("unofficial-velog-cli")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(_package_version())
+        raise typer.Exit()
+
+
 app = typer.Typer(
     name="vcli",
     help="AI 에이전트가 Velog 글을 안전하게 가져오고 발행하도록 돕는 CLI.",
     no_args_is_help=True,
     add_completion=False,
 )
+
+
+@app.callback()
+def main(
+    show_version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="설치된 vcli 버전을 출력합니다.",
+    ),
+) -> None:
+    """vcli 최상위 옵션을 처리합니다."""
+
 
 app.command(name="create")(create)
 app.command(name="list")(list_posts)
